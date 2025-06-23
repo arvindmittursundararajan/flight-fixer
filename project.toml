@@ -1,0 +1,10 @@
+# NOTE: The --update-env-vars=GOOGLE_BUILDABLE=SayHi flag does not work for build-time environment variables.
+# Instead, add the following to project.toml in the project directory:
+
+[[build.env]]   
+name = "GOOGLE_RUNTIME_VERSION"
+value = "3.12"
+
+[[build.env]]
+name = "GOOGLE_BUILDABLE"
+value = "SayHi" 
