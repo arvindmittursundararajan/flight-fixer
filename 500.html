@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error - DelayDeck IROPS{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <div class="py-5">
+                <i data-feather="alert-triangle" class="text-danger mb-4" style="font-size: 4rem;"></i>
+                <h1 class="display-4 mb-3 text-dark">500</h1>
+                <h2 class="mb-3 text-dark">Internal Server Error</h2>
+                <p class="text-muted mb-4">
+                    Something went wrong on our end. Our agents are working to resolve the issue.
+                </p>
+                <div class="alert alert-info text-start">
+                    <strong class="text-dark">What you can do:</strong>
+                    <ul class="mb-0 mt-2 text-dark">
+                        <li>Try refreshing the page</li>
+                        <li>Check if the issue persists</li>
+                        <li>Contact system administrator if the problem continues</li>
+                    </ul>
+                </div>
+                <div class="d-flex gap-2 justify-content-center">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                        <i data-feather="home" class="me-1"></i>
+                        Go to Dashboard
+                    </a>
+                    <button onclick="location.reload()" class="btn btn-outline-secondary">
+                        <i data-feather="refresh-cw" class="me-1"></i>
+                        Refresh Page
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

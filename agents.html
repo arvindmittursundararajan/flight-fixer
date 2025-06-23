@@ -1,0 +1,1281 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Collaboration - FlightFixer IROPS{% endblock %}
+
+{% block head %}
+<style>
+    .agent-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid #6c757d;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    .agent-card.agent-active { 
+        border-left-color: #198754; 
+        background: linear-gradient(90deg, rgba(25,135,84,0.05) 0%, white 15%);
+    }
+    .agent-card.agent-processing { 
+        border-left-color: #fd7e14; 
+        background: linear-gradient(90deg, rgba(253,126,20,0.05) 0%, white 15%);
+    }
+    .agent-card.agent-error { 
+        border-left-color: #dc3545; 
+        background: linear-gradient(90deg, rgba(220,53,69,0.05) 0%, white 15%);
+    }
+    
+    /* Communication Log Styling */
+    .communication-log-card {
+        height: 100%;
+    }
+    
+    .communication-log-body {
+        max-height: 350px;
+        overflow-y: auto;
+    }
+    
+    .communication-log-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .communication-log-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    .communication-log-body::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+    
+    .communication-log-body::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    
+    .communication-flow {
+        min-height: 400px;
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        position: relative;
+        border: 1px solid #dee2e6;
+    }
+    
+    .agent-node {
+        position: absolute;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+        border: 2px solid #dee2e6;
+        color: #495057;
+    }
+    
+    .agent-node:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .communication-line {
+        position: absolute;
+        height: 2px;
+        background: #0dcaf0;
+        transform-origin: left center;
+        opacity: 0.7;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-left: 30px;
+        margin-bottom: 20px;
+    }
+    
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: 12px;
+        top: 0;
+        bottom: -20px;
+        width: 2px;
+        background: #dee2e6;
+    }
+    
+    .timeline-item:last-child::before {
+        display: none;
+    }
+    
+    .timeline-marker {
+        position: absolute;
+        left: 8px;
+        top: 5px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        z-index: 1;
+        background: white;
+        border: 2px solid #6c757d;
+    }
+    
+    /* Flow Visualization Styling */
+    .flow-container {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .flow-agent {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .flow-agent:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .flow-arrow {
+        position: absolute;
+        opacity: 0.8;
+        transition: all 0.3s ease;
+    }
+    
+    .flow-arrow:hover {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    
+    .flow-coordinator {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .flow-coordinator:hover {
+        transform: translate(-50%, -50%) scale(1.1);
+        box-shadow: 0 6px 20px rgba(123, 31, 162, 0.3);
+    }
+    
+    /* Mermaid Flowchart Styling */
+    .mermaid {
+        text-align: center;
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+    }
+    
+    .mermaid svg {
+        max-width: 100%;
+        height: auto;
+    }
+</style>
+
+<!-- Mermaid.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1 class="h2 mb-0 text-dark">
+            <i data-feather="users" class="me-2 text-primary"></i>
+            Agent Collaboration
+        </h1>
+        <p class="text-muted mb-0">Multi-agent coordination and communication dashboard</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary" onclick="refreshAgentData()">
+            <i data-feather="refresh-cw" class="me-1"></i>
+            Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Global utility functions for agent actions (must be before agent cards) -->
+<script>
+// Server-side data passed to JavaScript
+const agentData = {
+    {% for agent in agents %}
+    '{{ agent.name }}': {
+        name: '{{ agent.name }}',
+        success_rate: {{ agent_metrics[agent.name].success_rate }},
+        tasks_completed: {{ agent_metrics[agent.name].tasks_completed }},
+        average_response_time: {{ agent_metrics[agent.name].average_response_time }},
+        current_workload: '{{ agent_metrics[agent.name].current_workload }}'
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+console.log('Agent data loaded:', agentData);
+
+window.filterCommunications = function() {
+    const filter = document.getElementById('filter-agent').value;
+    const rows = document.querySelectorAll('#communications-table tbody tr');
+    rows.forEach(row => {
+        if (!filter) {
+            row.style.display = '';
+        } else {
+            const sender = row.cells[1].textContent;
+            const receiver = row.cells[2].textContent;
+            row.style.display = (sender.includes(filter) || receiver.includes(filter)) ? '' : 'none';
+        }
+    });
+}
+
+window.refreshAgentData = function() {
+    console.log('Refreshing agent data...');
+    location.reload();
+}
+
+window.showAgentDetails = function(agentName) {
+    console.log('Showing details for agent:', agentName);
+    
+    // Get agent data
+    const agent = agentData[agentName];
+    if (!agent) {
+        console.error('Agent data not found for:', agentName);
+        // Fallback to basic data
+        const fallbackAgent = {
+            success_rate: 95,
+            tasks_completed: 150,
+            average_response_time: 2.5,
+            current_workload: 'Medium'
+        };
+        return populateAgentModal(agentName, fallbackAgent);
+    }
+    
+    populateAgentModal(agentName, agent);
+}
+
+function populateAgentModal(agentName, agent) {
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('agentConfigModal'));
+    modal.show();
+    
+    // Populate Agent Overview
+    document.getElementById('agent-overview').innerHTML = `
+        <div class="mb-3">
+            <h6 class="text-dark mb-2">${agentName}</h6>
+            <span class="badge bg-success">Active</span>
+            <span class="badge bg-primary ms-1">Coordination Agent</span>
+        </div>
+        <div class="mb-3">
+            <strong class="text-dark">Success Rate:</strong><br>
+            <span class="text-success">${agent.success_rate}%</span>
+        </div>
+        <div class="mb-3">
+            <strong class="text-dark">Tasks Completed:</strong><br>
+            <span class="text-primary">${agent.tasks_completed}</span>
+        </div>
+        <div class="mb-3">
+            <strong class="text-dark">Avg Response Time:</strong><br>
+            <span class="text-info">${agent.average_response_time}s</span>
+        </div>
+        <div class="mb-3">
+            <strong class="text-dark">Current Workload:</strong><br>
+            <span class="badge bg-${agent.current_workload === 'High' ? 'danger' : agent.current_workload === 'Medium' ? 'warning' : 'success'}">${agent.current_workload}</span>
+        </div>
+    `;
+    
+    // Populate Agent Capabilities
+    document.getElementById('agent-capabilities').innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-dark mb-2">Core Capabilities</h6>
+                <ul class="list-unstyled">
+                    <li><i data-feather="check-circle" class="me-2 text-success"></i>Real-time coordination</li>
+                    <li><i data-feather="check-circle" class="me-2 text-success"></i>Multi-agent communication</li>
+                    <li><i data-feather="check-circle" class="me-2 text-success"></i>Task prioritization</li>
+                    <li><i data-feather="check-circle" class="me-2 text-success"></i>Conflict resolution</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-dark mb-2">AI Features</h6>
+                <ul class="list-unstyled">
+                    <li><i data-feather="zap" class="me-2 text-warning"></i>Predictive analytics</li>
+                    <li><i data-feather="zap" class="me-2 text-warning"></i>Pattern recognition</li>
+                    <li><i data-feather="zap" class="me-2 text-warning"></i>Optimization algorithms</li>
+                    <li><i data-feather="zap" class="me-2 text-warning"></i>Learning capabilities</li>
+                </ul>
+            </div>
+        </div>
+        <div class="mt-3">
+            <h6 class="text-dark mb-2">Performance Optimization</h6>
+            <div class="progress mb-2" style="height: 8px;">
+                <div class="progress-bar bg-success" style="width: ${agent.success_rate}%"></div>
+            </div>
+            <small class="text-muted">Success rate: ${agent.success_rate}%</small>
+        </div>
+    `;
+    
+    // Populate Current Task Details
+    document.getElementById('agent-task-details').innerHTML = `
+        <div class="mb-3">
+            <h6 class="text-dark mb-2">Current Task</h6>
+            <div class="card bg-light">
+                <div class="card-body p-3">
+                    <strong>Task Type:</strong> Coordination<br>
+                    <strong>Status:</strong> <span class="badge bg-success">Active</span><br>
+                    <strong>Priority:</strong> <span class="badge bg-warning">Medium</span><br>
+                    <strong>Started:</strong> ${new Date().toLocaleTimeString()}
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <h6 class="text-dark mb-2">Recent Activities</h6>
+            <ul class="list-unstyled">
+                <li><i data-feather="activity" class="me-2 text-primary"></i>Processing coordination request</li>
+                <li><i data-feather="message-circle" class="me-2 text-info"></i>Communicating with other agents</li>
+                <li><i data-feather="check-circle" class="me-2 text-success"></i>Task optimization completed</li>
+            </ul>
+        </div>
+    `;
+    
+    // Populate Performance Metrics
+    document.getElementById('agent-performance').innerHTML = `
+        <div class="row text-center mb-3">
+            <div class="col-6">
+                <div class="h4 text-success mb-1">${agent.success_rate}%</div>
+                <small class="text-muted">Success Rate</small>
+            </div>
+            <div class="col-6">
+                <div class="h4 text-primary mb-1">${agent.tasks_completed}</div>
+                <small class="text-muted">Tasks Completed</small>
+            </div>
+        </div>
+        <div class="row text-center mb-3">
+            <div class="col-6">
+                <div class="h4 text-info mb-1">${agent.average_response_time}s</div>
+                <small class="text-muted">Avg Response</small>
+            </div>
+            <div class="col-6">
+                <div class="h4 text-warning mb-1">${agent.current_workload}</div>
+                <small class="text-muted">Workload</small>
+            </div>
+        </div>
+        <div class="mt-3">
+            <h6 class="text-dark mb-2">Performance Trends</h6>
+            <div class="progress mb-2" style="height: 6px;">
+                <div class="progress-bar bg-success" style="width: 85%"></div>
+            </div>
+            <small class="text-muted">Overall performance: Excellent</small>
+        </div>
+    `;
+    
+    // Populate Recent Communications
+    document.getElementById('agent-communications').innerHTML = `
+        <div class="communications-list" style="max-height: 200px; overflow-y: auto;">
+            <div class="communication-item mb-2 p-2 border-start border-3 border-primary bg-light">
+                <div class="d-flex justify-content-between">
+                    <span class="badge bg-primary">${agentName}</span>
+                    <small class="text-muted">${new Date().toLocaleTimeString()}</small>
+                </div>
+                <div class="mt-1">
+                    <strong>To:</strong> Crew Scheduling Agent<br>
+                    <strong>Message:</strong> Coordinating passenger rebooking requests
+                </div>
+            </div>
+            <div class="communication-item mb-2 p-2 border-start border-3 border-info bg-light">
+                <div class="d-flex justify-content-between">
+                    <span class="badge bg-info">Aircraft Maintenance</span>
+                    <small class="text-muted">${new Date(Date.now() - 300000).toLocaleTimeString()}</small>
+                </div>
+                <div class="mt-1">
+                    <strong>To:</strong> ${agentName}<br>
+                    <strong>Message:</strong> Maintenance status update completed
+                </div>
+            </div>
+            <div class="communication-item mb-2 p-2 border-start border-3 border-success bg-light">
+                <div class="d-flex justify-content-between">
+                    <span class="badge bg-success">Customer Communication</span>
+                    <small class="text-muted">${new Date(Date.now() - 600000).toLocaleTimeString()}</small>
+                </div>
+                <div class="mt-1">
+                    <strong>To:</strong> ${agentName}<br>
+                    <strong>Message:</strong> Customer notifications sent successfully
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Reinitialize Feather icons after content update
+    setTimeout(() => {
+        if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+            feather.replace();
+        }
+    }, 100);
+}
+
+window.configureAgent = function() {
+    console.log('Configuring agent...');
+    
+    // Create a configuration form modal
+    const configModal = document.createElement('div');
+    configModal.className = 'modal fade';
+    configModal.id = 'agentConfigFormModal';
+    
+    configModal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i data-feather="settings" class="me-2 text-primary"></i>
+                        Agent Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="agent-config-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                                <h6 class="text-dark mb-3">Performance Settings</h6>
+                            <div class="mb-3">
+                                    <label class="form-label text-dark">Response Time Limit (seconds)</label>
+                                    <input type="number" class="form-control" id="response-time-limit" value="30" min="5" max="120">
+                            </div>
+                            <div class="mb-3">
+                                    <label class="form-label text-dark">Max Concurrent Tasks</label>
+                                <input type="number" class="form-control" id="max-tasks" value="5" min="1" max="20">
+                            </div>
+                            <div class="mb-3">
+                                    <label class="form-label text-dark">AI Confidence Threshold</label>
+                                    <input type="range" class="form-range" id="confidence-threshold" min="0.5" max="1" step="0.1" value="0.8">
+                                    <small class="text-muted">Current: <span id="confidence-value">80%</span></small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                                <h6 class="text-dark mb-3">Communication Settings</h6>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="auto-coordination" checked>
+                                        <label class="form-check-label text-dark" for="auto-coordination">
+                                            Auto-coordination enabled
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="real-time-updates" checked>
+                                        <label class="form-check-label text-dark" for="real-time-updates">
+                                            Real-time updates
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="ai-assistance" checked>
+                                        <label class="form-check-label text-dark" for="ai-assistance">
+                                            AI assistance enabled
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                    <label class="form-label text-dark">Notification Level</label>
+                                <select class="form-select" id="notification-level">
+                                        <option value="low">Low</option>
+                                        <option value="medium" selected>Medium</option>
+                                        <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                                <h6 class="text-dark mb-3">Optimization Weights</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                        <label class="form-label text-dark">Cost Weight</label>
+                                    <input type="range" class="form-range" id="cost-weight" min="0" max="1" step="0.1" value="0.7">
+                                        <small class="text-muted">Current: <span id="cost-value">70%</span></small>
+                                </div>
+                                <div class="col-md-4">
+                                        <label class="form-label text-dark">Time Weight</label>
+                                    <input type="range" class="form-range" id="time-weight" min="0" max="1" step="0.1" value="0.8">
+                                        <small class="text-muted">Current: <span id="time-value">80%</span></small>
+                                </div>
+                                <div class="col-md-4">
+                                        <label class="form-label text-dark">Quality Weight</label>
+                                    <input type="range" class="form-range" id="quality-weight" min="0" max="1" step="0.1" value="0.9">
+                                        <small class="text-muted">Current: <span id="quality-value">90%</span></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveAgentConfiguration()">
+                        <i data-feather="save" class="me-1"></i>
+                        Save Configuration
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(configModal);
+    const modal = new bootstrap.Modal(configModal);
+    modal.show();
+    
+    // Add event listeners for range inputs
+    document.getElementById('confidence-threshold').addEventListener('input', function() {
+        document.getElementById('confidence-value').textContent = Math.round(this.value * 100) + '%';
+    });
+    
+    document.getElementById('cost-weight').addEventListener('input', function() {
+        document.getElementById('cost-value').textContent = Math.round(this.value * 100) + '%';
+    });
+    
+    document.getElementById('time-weight').addEventListener('input', function() {
+        document.getElementById('time-value').textContent = Math.round(this.value * 100) + '%';
+    });
+    
+    document.getElementById('quality-weight').addEventListener('input', function() {
+        document.getElementById('quality-value').textContent = Math.round(this.value * 100) + '%';
+    });
+    
+    // Clean up modal after it's hidden
+    configModal.addEventListener('hidden.bs.modal', function() {
+        document.body.removeChild(configModal);
+    });
+    
+    // Reinitialize Feather icons
+    setTimeout(() => {
+        if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+            feather.replace();
+        }
+    }, 100);
+}
+
+window.saveAgentConfiguration = function() {
+    console.log('Saving agent configuration...');
+    
+    // Collect form data
+    const config = {
+            response_time_limit: parseInt(document.getElementById('response-time-limit').value),
+            max_concurrent_tasks: parseInt(document.getElementById('max-tasks').value),
+        confidence_threshold: parseFloat(document.getElementById('confidence-threshold').value),
+            auto_coordination: document.getElementById('auto-coordination').checked,
+            real_time_updates: document.getElementById('real-time-updates').checked,
+            ai_assistance: document.getElementById('ai-assistance').checked,
+        notification_level: document.getElementById('notification-level').value,
+            cost_weight: parseFloat(document.getElementById('cost-weight').value),
+            time_weight: parseFloat(document.getElementById('time-weight').value),
+            quality_weight: parseFloat(document.getElementById('quality-weight').value)
+    };
+            
+            // Show success message
+    const successAlert = document.createElement('div');
+    successAlert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    successAlert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    successAlert.innerHTML = `
+        Agent configuration saved successfully!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(successAlert);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (successAlert.parentNode) {
+            successAlert.remove();
+        }
+    }, 3000);
+    
+    // Close the configuration modal
+    const configModal = bootstrap.Modal.getInstance(document.getElementById('agentConfigFormModal'));
+    if (configModal) {
+        configModal.hide();
+    }
+    
+    console.log('Configuration saved:', config);
+}
+</script>
+
+<!-- Agent Status Overview -->
+{% if agents|length > 0 %}
+<div class="row mb-4">
+    {% for agent in agents %}
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card agent-card agent-{{ agent.status.value if agent.status is defined else agent.status }} h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="card-title mb-1 text-dark">{{ agent.name }}</h5>
+                        <p class="text-muted small mb-0">{{ agent.type.value|title|replace('_', ' ') if agent.type is defined else agent.type|title|replace('_', ' ') }} Agent</p>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-{{ 'success' if agent.status.value == 'active' else 'warning' if agent.status.value == 'processing' else 'secondary' if agent.status.value == 'idle' else 'danger' }}">
+                            {{ agent.status.value|title if agent.status is defined else agent.status|title }}
+                        </span>
+                        <br>
+                        <button class="btn btn-sm btn-outline-primary mt-1" onclick="showAgentDetails('{{ agent.name }}')">
+                            <i data-feather="settings" class="me-1"></i>
+                            Configure
+                        </button>
+                    </div>
+                </div>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="h6 mb-0 text-dark">{{ agent_metrics[agent.name].tasks_completed if agent_metrics[agent.name] is defined else 0 }}</div>
+                        <small class="text-muted">Tasks</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h6 mb-0 text-dark">{{ agent_metrics[agent.name].success_rate if agent_metrics[agent.name] is defined else 0 }}%</div>
+                        <small class="text-muted">Success</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h6 mb-0 text-dark">{{ agent_metrics[agent.name].average_response_time if agent_metrics[agent.name] is defined else 0 }}s</div>
+                        <small class="text-muted">Avg Time</small>
+                    </div>
+                </div>
+                {% if agent.current_task %}
+                <div class="mt-3">
+                    <small class="text-muted">Current Task:</small>
+                    <div class="small text-dark">{{ agent.current_task }}</div>
+                </div>
+                {% endif %}
+                <div class="mt-3">
+                    <small class="text-muted">Workload:</small>
+                    <div class="progress" style="height: 5px;">
+                        <div class="progress-bar bg-{{ 'danger' if agent_metrics[agent.name].current_workload == 'High' else 'warning' if agent_metrics[agent.name].current_workload == 'Medium' else 'success' }}" 
+                             style="width: {{ '80' if agent_metrics[agent.name].current_workload == 'High' else '50' if agent_metrics[agent.name].current_workload == 'Medium' else '20' }}%"></div>
+                    </div>
+                    <small class="text-muted">{{ agent_metrics[agent.name].current_workload if agent_metrics[agent.name] is defined else 'N/A' }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-warning mt-4">No agents found in the system. Please check your database or seed agents.</div>
+{% endif %}
+
+<div class="row">
+    <!-- Agent Communication Flow -->
+    <div class="col-lg-8 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 text-dark">
+                    <i data-feather="share-2" class="me-2 text-info"></i>
+                    Agent Communication Flow
+                </h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" data-view="flow" onclick="switchView('flow')">Flow View</button>
+                    <button class="btn btn-outline-secondary" data-view="timeline" onclick="switchView('timeline')">Timeline View</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Communication Flow Visualization -->
+                <div id="flow-view" class="communication-view">
+                    <div class="communication-flow" id="agent-flow">
+                        <!-- Mermaid.js circular communication diagram -->
+                        <div class="mermaid" id="agent-flowchart">
+                            flowchart LR
+                                %% Agent nodes arranged in a circle
+                                PA(("Passenger\nRebooking"))
+                                CS(("Crew\nScheduling"))
+                                AM(("Aircraft\nMaintenance"))
+                                AR(("Airport\nResource"))
+                                CC(("Customer\nCommunication"))
+                                
+                                %% Central coordinator
+                                CO{{"Agent\nCoordinator"}}
+                                
+                                %% Simple connections between agents
+                                PA -->|"passenger_update"| CC
+                                CS -->|"crew_availability"| PA
+                                AM -->|"maintenance_status"| CS
+                                AR -->|"facility_status"| CC
+                                CC -->|"communication_status"| AR
+                                
+                                %% Coordinator connections
+                                CO -->|"coordination"| PA
+                                CO -->|"coordination"| CS
+                                CO -->|"coordination"| AM
+                                CO -->|"coordination"| AR
+                                CO -->|"coordination"| CC
+                                
+                                %% Styling
+                                classDef agentNode fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#1565c0
+                                classDef coordinatorNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#6a1b9a
+                                
+                                class PA,CS,AM,AR,CC agentNode
+                                class CO coordinatorNode
+                        </div>
+                        </div>
+                        </div>
+                
+                <!-- Timeline View -->
+                <div id="timeline-view" class="communication-view d-none">
+                    <div class="simple-timeline" style="padding: 20px;">
+                        <h6 class="text-dark mb-3">Agent Communication Timeline</h6>
+                        <div class="timeline-container">
+                            <div class="timeline-item" style="margin-bottom: 15px; padding-left: 20px; border-left: 2px solid #007bff;">
+                                <div class="d-flex justify-content-between">
+                                    <strong>00:00 - Passenger Rebooking</strong>
+                                    <span class="badge bg-primary">Started</span>
+                        </div>
+                                <small class="text-muted">Processing passenger rebooking requests</small>
+                        </div>
+                            <div class="timeline-item" style="margin-bottom: 15px; padding-left: 20px; border-left: 2px solid #fd7e14;">
+                                <div class="d-flex justify-content-between">
+                                    <strong>00:01 - Crew Scheduling</strong>
+                                    <span class="badge bg-warning">In Progress</span>
+                                </div>
+                                <small class="text-muted">Coordinating crew assignments</small>
+                            </div>
+                            <div class="timeline-item" style="margin-bottom: 15px; padding-left: 20px; border-left: 2px solid #198754;">
+                                <div class="d-flex justify-content-between">
+                                    <strong>00:02 - Aircraft Maintenance</strong>
+                                    <span class="badge bg-success">Completed</span>
+                                </div>
+                                <small class="text-muted">Maintenance assessment completed</small>
+                            </div>
+                            <div class="timeline-item" style="margin-bottom: 15px; padding-left: 20px; border-left: 2px solid #d63384;">
+                                <div class="d-flex justify-content-between">
+                                    <strong>00:03 - Airport Resource</strong>
+                                    <span class="badge bg-info">Pending</span>
+                                </div>
+                                <small class="text-muted">Resource allocation in progress</small>
+                            </div>
+                            <div class="timeline-item" style="margin-bottom: 15px; padding-left: 20px; border-left: 2px solid #0dcaf0;">
+                                <div class="d-flex justify-content-between">
+                                    <strong>00:04 - Customer Communication</strong>
+                                    <span class="badge bg-secondary">Waiting</span>
+                                </div>
+                                <small class="text-muted">Preparing customer notifications</small>
+                            </div>
+                    </div>
+                </div>
+                
+                    <!-- Fallback timeline for when no communications exist -->
+                    <div id="timeline-fallback" class="timeline" style="max-height: 400px; overflow-y: auto; padding: 20px; display: none;">
+                        {% if communications %}
+                        {% for comm in communications[:20] %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-{{ 'success' if comm.processed else 'warning' }}"></div>
+                            <div class="card border-0 bg-light">
+                                <div class="card-body py-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-primary me-2">{{ comm.sender }}</span>
+                                            <i data-feather="arrow-right" class="mx-2 text-muted" style="width: 16px; height: 16px;"></i>
+                                            <span class="badge bg-secondary">{{ comm.receiver }}</span>
+                                        </div>
+                                        <small class="text-muted">
+                                            {{ comm.timestamp|timeago }}
+                                        </small>
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="badge bg-info">{{ comm.message_type }}</span>
+                                        {% if comm.content and comm.content.startswith('{') and comm.content.endswith('}') %}
+                                            {% set content = comm.content_dict %}
+                                            {% if content.get('disruption_id') %}
+                                                <span class="badge bg-warning ms-1">Disruption #{{ content.disruption_id }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if not comm.processed %}
+                                            <span class="badge bg-secondary ms-1">Pending</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="small text-dark">
+                                        {% if comm.content %}
+                                            {% if comm.content.startswith('{') and comm.content.endswith('}') %}
+                                                {% set content = comm.content_dict %}
+                                                {% if content.get('disruption_id') %}
+                                                    Processing disruption #{{ content.disruption_id }}
+                                                {% elif content.get('flight_id') %}
+                                                    Flight #{{ content.flight_id }} update
+                                                {% else %}
+                                                    {{ (content|string)[:100] if content else 'N/A' }}...
+                                                {% endif %}
+                                            {% else %}
+                                                {{ comm.content[:100] }}...
+                                            {% endif %}
+                                        {% else %}
+                                            <em class="text-muted">No content available</em>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                            <div class="text-center text-muted py-5">
+                                <i data-feather="message-square" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+                                <p class="mt-3">No communications recorded yet</p>
+                                <small>Agent communications will appear here when they start coordinating</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Insights -->
+    <div class="col-lg-4 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="card-title mb-0 text-dark">
+                    <i data-feather="bar-chart-2" class="me-2 text-success"></i>
+                    Performance Insights
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Agent Performance Summary -->
+                <div class="mb-4">
+                    <h6 class="text-dark mb-3">Agent Performance Summary</h6>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <div class="text-center">
+                                <div class="h4 text-success mb-1">{{ agent_metrics.values()|selectattr('status', 'equalto', 'active')|list|length }}</div>
+                                <small class="text-muted">Active Agents</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="text-center">
+                                <div class="h4 text-warning mb-1">{{ agent_metrics.values()|selectattr('status', 'equalto', 'processing')|list|length }}</div>
+                                <small class="text-muted">Processing</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="text-center">
+                                <div class="h4 text-primary mb-1">{{ agent_metrics.values()|sum(attribute='tasks_completed') }}</div>
+                                <small class="text-muted">Total Tasks</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="text-center">
+                                {% if agent_metrics|length > 0 %}
+                                <div class="h4 text-info mb-1">{{ "%.1f"|format(agent_metrics.values()|map(attribute='average_response_time')|sum / agent_metrics|length) }}s</div>
+                                {% else %}
+                                <div class="h4 text-info mb-1">0.0s</div>
+                                {% endif %}
+                                <small class="text-muted">Avg Response</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Communication Statistics -->
+                <div class="mb-4">
+                    <h6 class="text-dark mb-3">Communication Statistics</h6>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-success rounded-circle me-2" style="width: 8px; height: 8px;"></div>
+                                <small class="text-muted">Processed</small>
+                            </div>
+                            <div class="h6 mb-0">{{ communications|selectattr('processed', 'equalto', true)|list|length }}</div>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-warning rounded-circle me-2" style="width: 8px; height: 8px;"></div>
+                                <small class="text-muted">Pending</small>
+                            </div>
+                            <div class="h6 mb-0">{{ communications|selectattr('processed', 'equalto', false)|list|length }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Health -->
+                <div>
+                    <h6 class="text-dark mb-3">System Health</h6>
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted">Overall Performance</small>
+                            <small class="text-success">Excellent</small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-success" style="width: 95%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted">Communication Efficiency</small>
+                            <small class="text-success">High</small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-success" style="width: 88%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted">Response Time</small>
+                            <small class="text-warning">Good</small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-warning" style="width: 75%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Agent Communication Log -->
+    <div class="col-12">
+        <div class="card border-0 shadow-sm communication-log-card">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 text-dark">
+                    <i data-feather="message-square" class="me-2 text-primary"></i>
+                    Communication Log
+                </h5>
+                <div class="input-group" style="width: 300px;">
+                    <select class="form-select" id="filter-agent">
+                        <option value="">All Agents</option>
+                        {% for agent in agents %}
+                        <option value="{{ agent.name }}">{{ agent.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-outline-secondary" onclick="filterCommunications()">
+                        <i data-feather="filter"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body communication-log-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="communications-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-dark">Time</th>
+                                <th class="text-dark">Sender</th>
+                                <th class="text-dark">Receiver</th>
+                                <th class="text-dark">Message Type</th>
+                                <th class="text-dark">Content</th>
+                                <th class="text-dark">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for comm in communications[:20] %}
+                            <tr>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ comm.timestamp|timeago }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ comm.sender }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ comm.receiver }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ comm.message_type }}</span>
+                                </td>
+                                <td>
+                                    <small class="text-dark">
+                                        {% if comm.content %}
+                                            {% if comm.content.startswith('{') and comm.content.endswith('}') %}
+                                                {% set content = comm.content_dict %}
+                                                {% if content.get('disruption_id') %}
+                                                    Disruption #{{ content.disruption_id }}
+                                                {% elif content.get('flight_id') %}
+                                                    Flight #{{ content.flight_id }}
+                                                {% else %}
+                                                    {{ (content|string)[:50] if content else 'N/A' }}...
+                                                {% endif %}
+                                            {% else %}
+                                                {{ comm.content[:50] }}...
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if comm.processed else 'warning' }}">
+                                        {{ 'Processed' if comm.processed else 'Pending' }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Coordination Controls -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="card-title mb-0 text-dark">
+                    <i data-feather="settings" class="me-2 text-warning"></i>
+                    Agent Coordination Controls
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-dark">System Controls</h6>
+                        <div class="btn-group me-2 mb-2">
+                            <button class="btn btn-success" onclick="startAllAgents()">
+                                <i data-feather="play" class="me-1"></i>
+                                Start All Agents
+                            </button>
+                            <button class="btn btn-warning" onclick="pauseAllAgents()">
+                                <i data-feather="pause" class="me-1"></i>
+                                Pause All
+                            </button>
+                            <button class="btn btn-danger" onclick="resetAllAgents()">
+                                <i data-feather="refresh-ccw" class="me-1"></i>
+                                Reset All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-dark">Communication Settings</h6>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="auto-coordination" checked>
+                            <label class="form-check-label text-dark" for="auto-coordination">
+                                Auto-coordination enabled
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="real-time-updates" checked>
+                            <label class="form-check-label text-dark" for="real-time-updates">
+                                Real-time updates
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Configuration Modal -->
+<div class="modal fade" id="agentConfigModal" tabindex="-1" aria-labelledby="agentConfigModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="agentConfigModalLabel">
+                    <i data-feather="settings" class="me-2 text-primary"></i>
+                    Agent Configuration & Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Agent Overview -->
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title text-dark">
+                                    <i data-feather="user" class="me-2 text-info"></i>
+                                    Agent Overview
+                                </h6>
+                                <div id="agent-overview">
+                                    <p class="text-muted">Select an agent to view details</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Agent Capabilities -->
+                    <div class="col-md-8">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title text-dark">
+                                    <i data-feather="zap" class="me-2 text-warning"></i>
+                                    Capabilities & Optimization
+                                </h6>
+                                <div id="agent-capabilities">
+                                    <p class="text-muted">Select an agent to view capabilities</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <!-- Current Task Details -->
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title text-dark">
+                                    <i data-feather="activity" class="me-2 text-success"></i>
+                                    Current Task Details
+                                </h6>
+                                <div id="agent-task-details">
+                                    <p class="text-muted">Select an agent to view task details</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Performance Metrics -->
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title text-dark">
+                                    <i data-feather="bar-chart-2" class="me-2 text-primary"></i>
+                                    Performance Metrics
+                                </h6>
+                                <div id="agent-performance">
+                                    <p class="text-muted">Select an agent to view performance</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <!-- Recent Communications -->
+                    <div class="col-12">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title text-dark">
+                                    <i data-feather="message-square" class="me-2 text-info"></i>
+                                    Recent Communications
+                                </h6>
+                                <div id="agent-communications">
+                                    <p class="text-muted">Select an agent to view communications</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="configureAgent()">
+                    <i data-feather="settings" class="me-1"></i>
+                    Configure Agent
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if agent_metrics is not defined %}
+<div class="alert alert-danger mt-4">Agent metrics data is unavailable. Please check backend logs or try again later.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global function definitions - defined first to avoid reference errors
+window.switchView = function(viewType) {
+    console.log('=== switchView called with:', viewType);
+    alert('switchView called with: ' + viewType); // Temporary debug alert
+    
+    // Update button states
+    document.querySelectorAll('[data-view]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    const activeButton = document.querySelector(`[data-view="${viewType}"]`);
+    if (activeButton) {
+        activeButton.classList.add('active');
+        console.log('Button state updated for:', viewType);
+    }
+    
+    // Hide all views
+    document.querySelectorAll('.communication-view').forEach(view => {
+        view.classList.add('d-none');
+        console.log('Hiding view:', view.id);
+    });
+    
+    // Show selected view
+    const selectedView = document.getElementById(`${viewType}-view`);
+    if (selectedView) {
+        selectedView.classList.remove('d-none');
+        console.log('Showing view:', selectedView.id);
+        
+        // Add visual feedback
+        selectedView.style.border = '2px solid #007bff';
+        setTimeout(() => {
+            selectedView.style.border = '';
+        }, 1000);
+        } else {
+        console.error('View not found:', `${viewType}-view`);
+        alert('View not found: ' + viewType + '-view'); // Temporary debug alert
+    }
+    
+    console.log('=== switchView completed');
+};
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing components...');
+    
+    // Initialize Feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    console.log('Initialization complete');
+});
+
+function startAllAgents() {
+    fetch('/api/start_agents', {method: 'POST'})
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('All agents have been started successfully!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showNotification('Failed to start agents: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error starting agents:', error);
+            showNotification('Error starting agents. Please try again.', 'error');
+        });
+}
+
+function pauseAllAgents() {
+    fetch('/api/pause_agents', {method: 'POST'})
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('All agents have been paused successfully!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showNotification('Failed to pause agents: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error pausing agents:', error);
+            showNotification('Error pausing agents. Please try again.', 'error');
+        });
+}
+
+function resetAllAgents() {
+    if (confirm('Are you sure you want to reset all agents?')) {
+        fetch('/api/reset_agents', {method: 'POST'})
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('All agents have been reset successfully!');
+                    location.reload();
+                } else {
+                    alert('Failed to reset agents: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error resetting agents:', error);
+                alert('Error resetting agents. Please try again.');
+            });
+    }
+}
+</script>
+{% endblock %}

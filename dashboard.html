@@ -1,0 +1,2074 @@
+{% extends "base.html" %}
+
+{% block title %}IROPS Dashboard - FlightFixer IROPS{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3 mb-0 text-dark">
+                    <i data-feather="monitor" class="me-2 text-primary"></i>
+                    IROPS Dashboard
+                </h1>
+                <p class="text-muted mb-0">Real-time airline operations monitoring and coordination</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="refreshDashboard()">
+                    <i data-feather="refresh-cw" class="me-1"></i>
+                    Refresh
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="refreshAgentChatter()">
+                    <i data-feather="message-circle" class="me-1"></i>
+                    Update Chatter
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Metrics Row -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <div class="bg-primary bg-opacity-10 p-3 rounded">
+                            <i data-feather="alert-triangle" class="text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="card-title mb-1 text-muted">Active Disruptions</h6>
+                        <h4 class="mb-0 text-dark">{{ active_disruptions|length if active_disruptions else 0 }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <div class="bg-warning bg-opacity-10 p-3 rounded">
+                            <i data-feather="clock" class="text-warning"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="card-title mb-1 text-muted">Delayed Flights</h6>
+                        <h4 class="mb-0 text-dark">{{ delayed_flights|length if delayed_flights else 0 }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <div class="bg-success bg-opacity-10 p-3 rounded">
+                            <i data-feather="users" class="text-success"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="card-title mb-1 text-muted">Active Agents</h6>
+                        <h4 class="mb-0 text-dark">{{ agent_status|length if agent_status else 5 }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <div class="bg-info bg-opacity-10 p-3 rounded">
+                            <i data-feather="check-circle" class="text-info"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="card-title mb-1 text-muted">Resolved Today</h6>
+                        <h4 class="mb-0 text-dark">{{ resolved_today|default(12) }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Dashboard Content -->
+<div class="row">
+    <!-- Active Disruptions -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm dashboard-card">
+            <div class="card-header bg-white border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 text-dark">
+                        <i data-feather="alert-triangle" class="me-2 text-warning"></i>
+                        Active Disruptions
+                    </h5>
+                    <span class="badge bg-warning">{{ active_disruptions|length if active_disruptions else 0 }} Active</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if active_disruptions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Type</th>
+                                    <th>Severity</th>
+                                    <th>Affected Flights</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for disruption in active_disruptions %}
+                                <tr class="disruption-severity-{{ disruption.severity.lower() if disruption.severity else 'medium' }}">
+                                    <td><strong>#{{ disruption.id }}</strong></td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ disruption.type if disruption.type else 'unknown' }}</span>
+                                    </td>
+                                    <td>
+                                        {% if disruption.severity == 'Critical' %}
+                                            <span class="badge bg-danger">Critical</span>
+                                        {% elif disruption.severity == 'High' %}
+                                            <span class="badge bg-warning">High</span>
+                                        {% elif disruption.severity == 'Medium' %}
+                                            <span class="badge bg-info">Medium</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Low</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if disruption.affected_flight_list %}
+                                            {% for flight_id in disruption.affected_flight_list[:3] %}
+                                                <span class="badge bg-light text-dark me-1">AO{{ flight_id }}</span>
+                                            {% endfor %}
+                                            {% if disruption.affected_flight_list|length > 3 %}
+                                                <span class="badge bg-light text-dark">+{{ disruption.affected_flight_list|length - 3 }} more</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">None</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">Active</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary coordinate-btn" data-disruption-id="{{ disruption.id }}">
+                                            <i data-feather="settings" class="me-1"></i>
+                                            Coordinate
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i data-feather="check-circle" class="mb-3" style="width: 48px; height: 48px;"></i>
+                        <h6>No Active Disruptions</h6>
+                        <p class="mb-0">All systems are operating normally</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Status & Chatter -->
+    <div class="col-lg-4">
+        <div class="row">
+            <!-- Agent Status -->
+            <div class="col-12 mb-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0 text-dark">
+                            <i data-feather="users" class="me-2 text-primary"></i>
+                            Agent Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="agent-status-list">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small">Passenger Rebooking</span>
+                                <span class="badge bg-success agent-indicator">
+                                    <i data-feather="circle" class="agent-status-active"></i>
+                                    Active
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small">Crew Scheduling</span>
+                                <span class="badge bg-success agent-indicator">
+                                    <i data-feather="circle" class="agent-status-active"></i>
+                                    Active
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small">Aircraft Maintenance</span>
+                                <span class="badge bg-warning agent-indicator">
+                                    <i data-feather="circle" class="agent-status-processing"></i>
+                                    Processing
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small">Airport Resource</span>
+                                <span class="badge bg-success agent-indicator">
+                                    <i data-feather="circle" class="agent-status-active"></i>
+                                    Active
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="small">Customer Communication</span>
+                                <span class="badge bg-success agent-indicator">
+                                    <i data-feather="circle" class="agent-status-active"></i>
+                                    Active
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Chatter -->
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0 text-dark">
+                            <i data-feather="message-circle" class="me-2 text-info"></i>
+                            Agent Chatter
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="agent-chatter-container">
+                            <div class="text-center text-muted py-3">
+                                <i data-feather="message-circle" class="mb-2" style="width: 32px; height: 32px;"></i>
+                                <p class="mb-0 small">No recent communications</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Flight Operations -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm flight-operations">
+            <div class="card-header bg-white border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 text-dark">
+                        <i data-feather="plane" class="me-2 text-success"></i>
+                        Flight Operations
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary active" onclick="showFlightTab('all')">All Flights</button>
+                        <button type="button" class="btn btn-outline-warning" onclick="showFlightTab('delayed')">Delayed</button>
+                        <button type="button" class="btn btn-outline-success" onclick="showFlightTab('on-time')">On Time</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- All Flights Tab -->
+                <div id="all-flights" class="flight-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Flight</th>
+                                    <th>Route</th>
+                                    <th>Departure</th>
+                                    <th>Arrival</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for i in range(1, 11) %}
+                                <tr class="{{ 'flight-delayed' if i % 3 == 0 else '' }}">
+                                    <td><strong>AO{{ 100 + i }}</strong></td>
+                                    <td>{{ ['JFK', 'LAX', 'ORD', 'DFW', 'ATL'][i % 5] }} → {{ ['LAX', 'JFK', 'DFW', 'ORD', 'ATL'][(i + 2) % 5] }}</td>
+                                    <td>{{ (14 + i % 12) }}:{{ '%02d'|format((i * 15) % 60) }}</td>
+                                    <td>{{ (16 + i % 12) }}:{{ '%02d'|format((i * 15 + 30) % 60) }}</td>
+                                    <td>
+                                        {% if i % 3 == 0 %}
+                                            <span class="badge bg-warning">Delayed</span>
+                                        {% else %}
+                                            <span class="badge bg-success">On Time</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary btn-sm" onclick="viewFlightDetails({{ i }})">
+                                                <i data-feather="eye" class="me-1"></i>
+                                                Details
+                                            </button>
+                                            {% if i % 3 == 0 %}
+                                            <button class="btn btn-outline-warning btn-sm" onclick="analyzeDelay({{ i }})">
+                                                <i data-feather="bar-chart-2" class="me-1"></i>
+                                                Analyze
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Delayed Flights Tab -->
+                <div id="delayed-flights" class="flight-tab d-none">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Flight</th>
+                                    <th>Route</th>
+                                    <th>Delay</th>
+                                    <th>Reason</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for i in range(3, 10, 3) %}
+                                <tr class="flight-delayed">
+                                    <td><strong>AO{{ 100 + i }}</strong></td>
+                                    <td>{{ ['JFK', 'LAX', 'ORD', 'DFW', 'ATL'][i % 5] }} → {{ ['LAX', 'JFK', 'DFW', 'ORD', 'ATL'][(i + 2) % 5] }}</td>
+                                    <td><span class="text-warning">+45 min</span></td>
+                                    <td><span class="badge bg-info">Weather</span></td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary btn-sm" onclick="viewFlightDetails({{ i }})">
+                                                <i data-feather="eye" class="me-1"></i>
+                                                Details
+                                            </button>
+                                            <button class="btn btn-outline-warning btn-sm" onclick="analyzeDelay({{ i }})">
+                                                <i data-feather="bar-chart-2" class="me-1"></i>
+                                                Analyze
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- On Time Flights Tab -->
+                <div id="on-time-flights" class="flight-tab d-none">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Flight</th>
+                                    <th>Route</th>
+                                    <th>Departure</th>
+                                    <th>Arrival</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for i in range(1, 11) %}
+                                {% if i % 3 != 0 %}
+                                <tr>
+                                    <td><strong>AO{{ 100 + i }}</strong></td>
+                                    <td>{{ ['JFK', 'LAX', 'ORD', 'DFW', 'ATL'][i % 5] }} → {{ ['LAX', 'JFK', 'DFW', 'ORD', 'ATL'][(i + 2) % 5] }}</td>
+                                    <td>{{ (14 + i % 12) }}:{{ '%02d'|format((i * 15) % 60) }}</td>
+                                    <td>{{ (16 + i % 12) }}:{{ '%02d'|format((i * 15 + 30) % 60) }}</td>
+                                    <td>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="viewFlightDetails({{ i }})">
+                                            <i data-feather="eye" class="me-1"></i>
+                                            Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Flight Details Modal -->
+<div class="modal fade" id="flightDetailsModal" tabindex="-1" aria-labelledby="flightDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="flightDetailsModalLabel">
+                    <i data-feather="plane" class="me-2 text-primary"></i>
+                    Flight Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="flight-details-content">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delay Analysis Modal -->
+<div class="modal fade" id="delayAnalysisModal" tabindex="-1" aria-labelledby="delayAnalysisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="delayAnalysisModalLabel">
+                    <i data-feather="bar-chart-2" class="me-2 text-warning"></i>
+                    Delay Analysis
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="delay-analysis-content">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    /* Custom scrollbar styling */
+    .card-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .card-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    .card-body::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+    
+    .card-body::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    
+    /* Ensure proper height constraints */
+    .dashboard-card {
+        height: 100%;
+    }
+    
+    .dashboard-card .card-body {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .flight-operations .card-body {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    /* Agent status styling */
+    .agent-indicator i {
+        width: 12px;
+        height: 12px;
+    }
+    
+    .agent-status-active {
+        color: #198754;
+    }
+    
+    .agent-status-processing {
+        color: #fd7e14;
+    }
+    
+    .agent-status-idle {
+        color: #6c757d;
+    }
+    
+    .agent-status-error {
+        color: #dc3545;
+    }
+    
+    /* Disruption severity styling */
+    .disruption-severity-critical {
+        border-left: 4px solid #dc3545 !important;
+    }
+    
+    .disruption-severity-high {
+        border-left: 4px solid #fd7e14 !important;
+    }
+    
+    .disruption-severity-medium {
+        border-left: 4px solid #ffc107 !important;
+    }
+    
+    .disruption-severity-low {
+        border-left: 4px solid #198754 !important;
+    }
+    
+    /* Flight delayed styling */
+    .flight-delayed {
+        background-color: rgba(255, 193, 7, 0.1);
+    }
+    
+    /* Coordination modal styling */
+    .coordination-flow {
+        min-height: 300px;
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        position: relative;
+        border: 1px solid #dee2e6;
+    }
+    
+    .agent-node {
+        position: absolute;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+        border: 2px solid #dee2e6;
+        color: #495057;
+    }
+    
+    .agent-node:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .communication-line {
+        position: absolute;
+        height: 2px;
+        background: #0dcaf0;
+        transform-origin: left center;
+        opacity: 0.7;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
+    
+    /* Business Metrics Styling */
+    .business-metrics-container {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .bg-gradient-success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    
+    .bg-gradient-warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    .bg-gradient-info {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    .card {
+        transition: all 0.3s ease;
+        border-radius: 12px;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+    }
+    
+    .card-header {
+        border-radius: 12px 12px 0 0 !important;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .bg-opacity-10 {
+        --bs-bg-opacity: 0.1;
+    }
+    
+    .progress {
+        border-radius: 10px;
+        background-color: #e9ecef;
+    }
+    
+    .progress-bar {
+        border-radius: 10px;
+    }
+    
+    .badge {
+        font-weight: 500;
+        padding: 0.5em 0.75em;
+    }
+    
+    .table-sm td, .table-sm th {
+        padding: 0.5rem;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    .alert {
+        border-radius: 12px;
+        border: none;
+    }
+    
+    /* Custom metric cards */
+    .metric-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    
+    .metric-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    /* Responsive improvements */
+    @media (max-width: 768px) {
+        .metric-value {
+            font-size: 1.5rem;
+        }
+        
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .row .col-md-3,
+        .row .col-md-6 {
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+
+<script>
+// Define functions globally before HTML is rendered
+window.viewFlightDetails = function(flightId) {
+    console.log('viewFlightDetails called with:', flightId);
+    
+    // Show loading state
+    document.getElementById('flight-details-content').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading flight details...</p>
+        </div>
+    `;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('flightDetailsModal'));
+    modal.show();
+    
+    // Simulate API call to get flight details
+    setTimeout(() => {
+        const flightDetails = generateFlightDetails(flightId);
+        document.getElementById('flight-details-content').innerHTML = flightDetails;
+        
+        // Reinitialize Feather icons
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+    }, 1000);
+};
+
+window.analyzeDelay = function(flightId) {
+    console.log('analyzeDelay called with:', flightId);
+    
+    // Show loading state
+    document.getElementById('delay-analysis-content').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-warning" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Analyzing delay patterns...</p>
+        </div>
+    `;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('delayAnalysisModal'));
+    modal.show();
+    
+    // Simulate API call to get delay analysis
+    setTimeout(() => {
+        const delayAnalysis = generateDelayAnalysis(flightId);
+        document.getElementById('delay-analysis-content').innerHTML = delayAnalysis;
+        
+        // Reinitialize Feather icons
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+    }, 1500);
+};
+
+window.showFlightTab = function(tabName) {
+    console.log('showFlightTab called with:', tabName);
+    
+    // Hide all flight tabs
+    document.querySelectorAll('.flight-tab').forEach(tab => {
+        tab.classList.add('d-none');
+    });
+    
+    // Show selected tab
+    document.getElementById(tabName + '-flights').classList.remove('d-none');
+    
+    // Update button states
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+}
+
+window.coordinateDisruption = function(disruptionId) {
+    console.log('coordinateDisruption called with:', disruptionId);
+    
+    // Show the coordination modal
+    window.showCoordinationModal(disruptionId);
+    
+    // Also make the actual API call in the background
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i data-feather="loader" class="me-1"></i>Coordinating...';
+    btn.disabled = true;
+    
+    // Make API call
+    fetch(`/api/coordinate/${disruptionId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(60000) // 60 second timeout
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Add success message to timeline
+            window.addTimelineItem('Real coordination completed successfully!', 'success', 'check-circle');
+        } else {
+            window.addTimelineItem('Real coordination failed: ' + (data.error || 'Unknown error'), 'danger', 'alert-triangle');
+        }
+    })
+    .catch(error => {
+        if (error.name === 'TimeoutError') {
+            window.addTimelineItem('Coordination timed out - process is running in background', 'warning', 'clock');
+        } else {
+            window.addTimelineItem('Error in real coordination: ' + error.message, 'danger', 'alert-triangle');
+        }
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        // Safe feather icon initialization
+        try {
+            if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+                feather.replace();
+            }
+        } catch (error) {
+            console.warn('Feather Icons initialization failed:', error);
+        }
+    });
+};
+
+window.showCoordinationModal = function(disruptionId) {
+    console.log('showCoordinationModal called with:', disruptionId);
+    // Fix: Set as global window variable so Business Metrics tab can access it
+    window.currentDisruptionId = disruptionId;
+    
+    // Backup: Store in sessionStorage for fallback access
+    if (disruptionId) {
+        sessionStorage.setItem('currentDisruptionId', disruptionId);
+        console.log('Stored disruption ID in sessionStorage:', disruptionId);
+    }
+    
+    const modalElement = document.getElementById('coordinationModal');
+    if (!modalElement) {
+        console.error('Coordination modal element not found!');
+        return;
+    }
+    
+    // Get existing modal instance or create new one
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement, {
+            backdrop: 'static',
+            keyboard: false
+        });
+    }
+    
+    // Reset the modal before showing
+    window.resetCoordinationModal();
+    
+    // Show the modal
+    modal.show();
+    
+    // Load coordination steps data for the steps tab
+    loadCoordinationSteps(disruptionId);
+    
+    // Start coordination process after modal is shown
+    setTimeout(() => {
+        window.startCoordinationProcess(disruptionId);
+    }, 100);
+    
+    // Set up event handlers for buttons
+    setupCoordinationModalHandlers(disruptionId);
+};
+
+window.addTimelineItem = function(message, type = 'info', icon = 'info', customTimestamp = null) {
+    console.log('addTimelineItem called:', message);
+    const timeline = document.getElementById('coordination-timeline');
+    const timestamp = customTimestamp || new Date().toLocaleTimeString();
+    
+    const timelineItem = document.createElement('div');
+    timelineItem.className = `alert alert-${type} alert-dismissible fade show mb-2`;
+    timelineItem.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i data-feather="${icon}" class="me-2" style="width: 16px; height: 16px;"></i>
+            <span class="flex-grow-1">${message}</span>
+            <small class="text-muted ms-2">${timestamp}</small>
+        </div>
+    `;
+    
+    timeline.appendChild(timelineItem);
+    timeline.scrollTop = timeline.scrollHeight;
+    
+    // Safe Feather icons initialization for the new item
+    try {
+        if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+            feather.replace();
+        }
+    } catch (error) {
+        console.warn('Feather Icons initialization failed:', error);
+    }
+};
+
+window.refreshDashboard = function() {
+    location.reload();
+};
+
+window.refreshAgentChatter = function() {
+    // Fetch latest communications
+    fetch('/api/communications/recent')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.communications) {
+                window.updateAgentChatter(data.communications);
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing agent chatter:', error);
+        });
+};
+
+window.updateAgentChatter = function(communications) {
+    console.log('updateAgentChatter called with:', communications);
+    const container = document.getElementById('agent-chatter-container');
+    if (!container) return;
+    
+    let html = '';
+    communications.slice(0, 6).forEach(comm => {
+        const badgeClass = comm.sender === 'Passenger Rebooking Agent' ? 'primary' : 
+                          comm.sender === 'Crew Scheduling Agent' ? 'info' : 
+                          comm.sender === 'Aircraft Maintenance Agent' ? 'warning' : 
+                          comm.sender === 'Customer Communication Agent' ? 'success' : 'secondary';
+        
+        let content = 'Processing task...';
+        if (comm.content) {
+            if (comm.content.startsWith('{') && comm.content.endsWith('}')) {
+                try {
+                    const contentObj = JSON.parse(comm.content);
+                    if (contentObj.disruption_id) {
+                        content = `Coordinating disruption #${contentObj.disruption_id}`;
+                    } else if (contentObj.flight_id) {
+                        content = `Processing flight #${contentObj.flight_id}`;
+                    } else {
+                        content = 'Processing coordination task...';
+                    }
+                } catch (e) {
+                    content = comm.content.substring(0, 60) + '...';
+                }
+            } else {
+                content = comm.content.substring(0, 60) + '...';
+            }
+        }
+        
+        html += `
+            <div class="chatter-message mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-${badgeClass} small">${comm.sender}</span>
+                    <small class="text-muted">${comm.timestamp ? new Date(comm.timestamp).toLocaleTimeString() : 'Just now'}</small>
+                </div>
+                <div class="mt-1 small text-dark">${content}</div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+};
+
+// Helper functions for generating content
+function generateFlightDetails(flightId) {
+    const flightData = {
+        flight_number: `AO${100 + flightId}`,
+        origin: ['JFK', 'LAX', 'ORD', 'DFW', 'ATL'][flightId % 5],
+        destination: ['LAX', 'JFK', 'DFW', 'ORD', 'ATL'][(flightId + 2) % 5],
+        aircraft: `B737-${800 + flightId}`,
+        scheduled_departure: new Date(Date.now() + flightId * 60000).toLocaleString(),
+        scheduled_arrival: new Date(Date.now() + flightId * 60000 + 1800000).toLocaleString(),
+        status: flightId % 3 === 0 ? 'Delayed' : 'On Time',
+        delay_minutes: flightId % 3 === 0 ? 45 : 0,
+        passengers: 120 + (flightId % 80),
+        crew: 4,
+        gate: `${['JFK', 'LAX', 'ORD', 'DFW', 'ATL'][flightId % 5]}${10 + (flightId % 20)}`,
+        weather: 'Clear',
+        maintenance_status: 'Good'
+    };
+    
+    return `
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-dark mb-3">Flight Information</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Flight Number:</strong></td><td>${flightData.flight_number}</td></tr>
+                    <tr><td><strong>Route:</strong></td><td>${flightData.origin} → ${flightData.destination}</td></tr>
+                    <tr><td><strong>Aircraft:</strong></td><td>${flightData.aircraft}</td></tr>
+                    <tr><td><strong>Status:</strong></td><td><span class="badge bg-${flightData.status === 'Delayed' ? 'warning' : 'success'}">${flightData.status}</span></td></tr>
+                    <tr><td><strong>Gate:</strong></td><td>${flightData.gate}</td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-dark mb-3">Schedule Details</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Scheduled Departure:</strong></td><td>${flightData.scheduled_departure}</td></tr>
+                    <tr><td><strong>Scheduled Arrival:</strong></td><td>${flightData.scheduled_arrival}</td></tr>
+                    <tr><td><strong>Delay:</strong></td><td>${flightData.delay_minutes > 0 ? `+${flightData.delay_minutes} minutes` : 'None'}</td></tr>
+                    <tr><td><strong>Passengers:</strong></td><td>${flightData.passengers}</td></tr>
+                    <tr><td><strong>Crew:</strong></td><td>${flightData.crew}</td></tr>
+                </table>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6 class="text-dark mb-3">Operational Status</h6>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <i data-feather="cloud" class="text-info mb-2"></i>
+                                <h6>Weather</h6>
+                                <span class="badge bg-success">${flightData.weather}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <i data-feather="tool" class="text-warning mb-2"></i>
+                                <h6>Maintenance</h6>
+                                <span class="badge bg-success">${flightData.maintenance_status}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <i data-feather="users" class="text-primary mb-2"></i>
+                                <h6>Crew Status</h6>
+                                <span class="badge bg-success">Available</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function generateDelayAnalysis(flightId) {
+    const delayData = {
+        flight_number: `AO${100 + flightId}`,
+        delay_minutes: 45,
+        delay_reason: 'Weather',
+        impact_level: 'Medium',
+        affected_passengers: 120,
+        estimated_cost: '$12,500',
+        mitigation_actions: [
+            'Rebooked 15 passengers on alternative flights',
+            'Updated 8 connecting flight arrangements',
+            'Notified ground crew of schedule change',
+            'Coordinated with maintenance for aircraft swap'
+        ],
+        historical_patterns: [
+            'Similar delays occurred 3 times this month',
+            'Average delay duration: 38 minutes',
+            'Most common cause: Weather (60%)',
+            'Peak delay time: 14:00-16:00'
+        ]
+    };
+    
+    return `
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-dark mb-3">Delay Summary</h6>
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h4 class="text-warning">${delayData.delay_minutes}</h4>
+                                <small class="text-muted">Minutes Delayed</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-danger">${delayData.affected_passengers}</h4>
+                                <small class="text-muted">Passengers Affected</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Reason:</strong><br>
+                                <span class="badge bg-info">${delayData.delay_reason}</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Impact:</strong><br>
+                                <span class="badge bg-${delayData.impact_level === 'High' ? 'danger' : 'warning'}">${delayData.impact_level}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-dark mb-3">Cost Impact</h6>
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="text-danger">${delayData.estimated_cost}</h3>
+                        <p class="text-muted">Estimated Operational Cost</p>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-warning" style="width: 65%"></div>
+                        </div>
+                        <small class="text-muted">65% of monthly delay budget</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <h6 class="text-dark mb-3">Mitigation Actions</h6>
+                <ul class="list-group">
+                    ${delayData.mitigation_actions.map(action => `
+                        <li class="list-group-item">
+                            <i data-feather="check-circle" class="me-2 text-success"></i>
+                            ${action}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-dark mb-3">Historical Patterns</h6>
+                <ul class="list-group">
+                    ${delayData.historical_patterns.map(pattern => `
+                        <li class="list-group-item">
+                            <i data-feather="trending-up" class="me-2 text-info"></i>
+                            ${pattern}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6 class="text-dark mb-3">Recommendations</h6>
+                <div class="alert alert-info">
+                    <i data-feather="lightbulb" class="me-2"></i>
+                    <strong>Recommendations:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Consider pre-emptive rebooking for weather-sensitive routes</li>
+                        <li>Implement dynamic pricing for alternative flights</li>
+                        <li>Enhance weather monitoring for early warning systems</li>
+                        <li>Optimize crew scheduling for weather-related disruptions</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Coordination Modal Functions
+let coordinationInterval;
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers for coordinate buttons
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.coordinate-btn');
+        if (btn) {
+            console.log('Coordinate button clicked!'); // Debug log
+            const disruptionId = btn.getAttribute('data-disruption-id');
+            console.log('Disruption ID:', disruptionId); // Debug log
+            coordinateDisruption(disruptionId);
+        }
+    });
+    
+    // Refresh coordination button
+    const refreshBtn = document.getElementById('refresh-coordination');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            if (window.currentDisruptionId) {
+                fetchCoordinationData(window.currentDisruptionId);
+            }
+        });
+    }
+    
+    // Modal hidden event - improved cleanup
+    const coordinationModal = document.getElementById('coordinationModal');
+    if (coordinationModal) {
+        coordinationModal.addEventListener('hidden.bs.modal', function() {
+            console.log('Modal hidden event triggered');
+            // Stop any ongoing coordination processes
+            if (window.coordinationInterval) {
+                clearInterval(window.coordinationInterval);
+                window.coordinationInterval = null;
+            }
+            window.currentDisruptionId = null;
+            
+            // Reset modal state
+            window.resetCoordinationModal();
+        });
+        
+        // Modal shown event
+        coordinationModal.addEventListener('shown.bs.modal', function() {
+            console.log('Modal shown event triggered');
+            // Reinitialize Feather icons after modal is shown
+            if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+                feather.replace();
+            }
+            
+            // Set up tab click handlers
+            setupCoordinationTabHandlers();
+        });
+    }
+});
+
+// Set up coordination tab handlers
+function setupCoordinationTabHandlers() {
+    const stepsTab = document.getElementById('steps-tab');
+    const metricsTab = document.getElementById('metrics-tab');
+    
+    if (stepsTab) {
+        stepsTab.addEventListener('click', function() {
+            console.log('Coordination Steps tab clicked');
+            const disruptionId = window.currentDisruptionId || sessionStorage.getItem('currentDisruptionId');
+            if (disruptionId) {
+                console.log('Loading coordination steps for disruption:', disruptionId);
+                loadCoordinationSteps(disruptionId);
+            } else {
+                console.error('No disruption ID available for coordination steps');
+            }
+        });
+    }
+    
+    if (metricsTab) {
+        metricsTab.addEventListener('click', function() {
+            console.log('Business Metrics tab clicked');
+            const disruptionId = window.currentDisruptionId || sessionStorage.getItem('currentDisruptionId');
+            if (disruptionId) {
+                console.log('Loading business metrics for disruption:', disruptionId);
+                loadBusinessMetrics(disruptionId);
+            } else {
+                console.error('No disruption ID available for business metrics');
+            }
+        });
+    }
+}
+
+// Make functions globally available after all functions are defined
+window.coordinateDisruption = coordinateDisruption;
+window.showFlightTab = showFlightTab;
+window.viewFlightDetails = viewFlightDetails;
+window.analyzeDelay = analyzeDelay;
+window.refreshDashboard = refreshDashboard;
+window.refreshAgentChatter = refreshAgentChatter;
+window.showCoordinationModal = showCoordinationModal;
+window.addTimelineItem = addTimelineItem;
+window.updateAgentChatter = updateAgentChatter;
+window.closeCoordinationModal = closeCoordinationModal;
+window.loadCoordinationSteps = loadCoordinationSteps;
+
+// Add other coordination-related functions
+window.resetCoordinationModal = function() {
+    console.log('Resetting coordination modal');
+    
+    // Reset progress bar
+    const progressBar = document.getElementById('coordination-progress');
+    if (progressBar) {
+        progressBar.style.width = '0%';
+        progressBar.textContent = '';
+    }
+    
+    // Reset timeline
+    const timeline = document.getElementById('coordination-timeline');
+    if (timeline) {
+        timeline.innerHTML = '';
+    }
+    
+    // Reset agent nodes
+    const agentNodes = document.querySelectorAll('.agent-node');
+    agentNodes.forEach(node => {
+        node.style.border = node.style.border.replace('!important', '');
+        node.style.background = node.style.background.replace('!important', '');
+    });
+    
+    // Reset coordination steps content
+    const stepsContent = document.getElementById('coordination-steps-content');
+    if (stepsContent) {
+        stepsContent.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <div class="spinner-border text-secondary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading coordination steps...</p>
+            </div>
+        `;
+    }
+    
+    // Stop any ongoing coordination processes
+    if (window.coordinationInterval) {
+        clearInterval(window.coordinationInterval);
+        window.coordinationInterval = null;
+    }
+};
+
+window.startCoordinationProcess = function(disruptionId) {
+    console.log('Starting coordination process for disruption:', disruptionId);
+    
+    // Add initial timeline item
+    window.addTimelineItem('Starting coordination process...', 'info', 'play');
+    
+    // Simulate the coordination phases
+    const phases = [
+        { name: 'Assessment', progress: 25, duration: 2000 },
+        { name: 'Planning', progress: 50, duration: 2000 },
+        { name: 'Execution', progress: 75, duration: 3000 },
+        { name: 'Monitoring', progress: 100, duration: 1000 }
+    ];
+    
+    let currentPhase = 0;
+    let isProcessActive = true;
+    
+    function executePhase() {
+        // Check if process should continue
+        if (!isProcessActive || !window.currentDisruptionId) {
+            console.log('Coordination process stopped');
+            return;
+        }
+        
+        if (currentPhase >= phases.length) {
+            // All phases complete
+            if (isProcessActive) {
+                window.addTimelineItem('Coordination process completed successfully!', 'success', 'check-circle');
+            }
+            return;
+        }
+        
+        const phase = phases[currentPhase];
+        
+        // Update progress bar
+        const progressBar = document.getElementById('coordination-progress');
+        if (progressBar && isProcessActive) {
+            progressBar.style.width = phase.progress + '%';
+        }
+        
+        // Add timeline item
+        if (isProcessActive) {
+            window.addTimelineItem(`Phase ${currentPhase + 1}: ${phase.name}`, 'primary', 'activity');
+        }
+        
+        // Animate agent nodes based on phase
+        if (isProcessActive) {
+            window.animateAgentsForPhase(currentPhase);
+        }
+        
+        currentPhase++;
+        
+        // Schedule next phase only if process is still active
+        if (isProcessActive) {
+            setTimeout(executePhase, phase.duration);
+        }
+    }
+    
+    // Start the first phase
+    executePhase();
+    
+    // Also make real API call to get actual coordination data
+    if (isProcessActive) {
+        window.fetchCoordinationData(disruptionId);
+    }
+    
+    // Return a function to stop the process
+    return function() {
+        isProcessActive = false;
+        console.log('Coordination process stopped by user');
+    };
+};
+
+// Initialize coordination variables
+window.coordinationInterval = null;
+window.currentDisruptionId = null;
+
+window.animateAgentsForPhase = function(phaseIndex) {
+    const agentAnimations = [
+        // Phase 0: Assessment - All agents assess
+        () => {
+            const agents = ['passenger', 'crew', 'maintenance', 'airport', 'communication'];
+            agents.forEach((agent, index) => {
+                setTimeout(() => {
+                    const node = document.getElementById(`agent-${agent}`);
+                    if (node) {
+                        node.style.transform = 'scale(1.2)';
+                        node.style.boxShadow = '0 0 20px rgba(0,123,255,0.5)';
+                        setTimeout(() => {
+                            node.style.transform = 'scale(1)';
+                            node.style.boxShadow = 'none';
+                        }, 500);
+                    }
+                }, index * 200);
+            });
+        },
+        // Phase 1: Planning - Agents communicate
+        () => {
+            const communications = [
+                { from: 'maintenance', to: 'airport' },
+                { from: 'crew', to: 'passenger' },
+                { from: 'airport', to: 'communication' }
+            ];
+            
+            communications.forEach((comm, index) => {
+                setTimeout(() => {
+                    const fromNode = document.getElementById(`agent-${comm.from}`);
+                    const toNode = document.getElementById(`agent-${comm.to}`);
+                    
+                    if (fromNode) {
+                        fromNode.style.transform = 'scale(1.1)';
+                        fromNode.style.boxShadow = '0 0 15px rgba(255,193,7,0.5)';
+                    }
+                    
+                    setTimeout(() => {
+                        if (toNode) {
+                            toNode.style.transform = 'scale(1.1)';
+                            toNode.style.boxShadow = '0 0 15px rgba(40,167,69,0.5)';
+                        }
+                        
+                        setTimeout(() => {
+                            if (fromNode) {
+                                fromNode.style.transform = 'scale(1)';
+                                fromNode.style.boxShadow = 'none';
+                            }
+                            if (toNode) {
+                                toNode.style.transform = 'scale(1)';
+                                toNode.style.boxShadow = 'none';
+                            }
+                        }, 500);
+                    }, 300);
+                }, index * 400);
+            });
+        },
+        // Phase 2: Execution - Agents execute actions
+        () => {
+            const agents = ['passenger', 'crew', 'maintenance', 'airport', 'communication'];
+            agents.forEach((agent, index) => {
+                setTimeout(() => {
+                    const node = document.getElementById(`agent-${agent}`);
+                    if (node) {
+                        node.style.transform = 'scale(1.15)';
+                        node.style.boxShadow = '0 0 25px rgba(220,53,69,0.6)';
+                        node.style.background = 'linear-gradient(45deg, #fff, #e3f2fd)';
+                        
+                        setTimeout(() => {
+                            node.style.transform = 'scale(1)';
+                            node.style.boxShadow = 'none';
+                            node.style.background = node.style.background.replace('!important', '');
+                        }, 800);
+                    }
+                }, index * 300);
+            });
+        },
+        // Phase 3: Monitoring - All agents monitor
+        () => {
+            const agents = ['passenger', 'crew', 'maintenance', 'airport', 'communication'];
+            agents.forEach((agent, index) => {
+                setTimeout(() => {
+                    const node = document.getElementById(`agent-${agent}`);
+                    if (node) {
+                        node.style.transform = 'scale(1.1)';
+                        node.style.boxShadow = '0 0 20px rgba(25,135,84,0.5)';
+                        node.style.background = 'linear-gradient(45deg, #fff, #d1e7dd)';
+                        
+                        setTimeout(() => {
+                            node.style.transform = 'scale(1)';
+                            node.style.boxShadow = 'none';
+                            node.style.background = node.style.background.replace('!important', '');
+                        }, 600);
+                    }
+                }, index * 150);
+            });
+        }
+    ];
+    
+    if (agentAnimations[phaseIndex]) {
+        agentAnimations[phaseIndex]();
+    }
+};
+
+window.fetchCoordinationData = async function(disruptionId) {
+    try {
+        // Get agent status with timeout
+        const statusResponse = await fetch('/api/agent_status', {
+            signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+        if (!statusResponse.ok) {
+            throw new Error(`Agent status HTTP error! status: ${statusResponse.status}`);
+        }
+        const statusData = await statusResponse.json();
+        
+        // Get communications for this disruption with timeout
+        const commResponse = await fetch(`/api/communications/${disruptionId}`, {
+            signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+        if (!commResponse.ok) {
+            throw new Error(`Communications HTTP error! status: ${commResponse.status}`);
+        }
+        const commData = await commResponse.json();
+        
+        // Update timeline with real data
+        if (commData.communications && commData.communications.length > 0) {
+            // Clear existing timeline items
+            const timeline = document.getElementById('coordination-timeline');
+            if (timeline) {
+                timeline.innerHTML = '';
+            }
+            
+            // Add each communication as a timeline item
+            commData.communications.forEach(comm => {
+                const sender = comm.sender || 'Unknown Agent';
+                const receiver = comm.receiver || 'Unknown Agent';
+                const messageType = comm.message_type || 'message';
+                const timestamp = new Date(comm.timestamp).toLocaleTimeString();
+                
+                // Extract meaningful content
+                let content = 'Processing coordination task...';
+                if (comm.content) {
+                    try {
+                        if (comm.content.startsWith('{') && comm.content.endsWith('}')) {
+                            const contentObj = JSON.parse(comm.content);
+                            if (contentObj.disruption_id) {
+                                content = `Coordinating disruption #${contentObj.disruption_id}`;
+                            } else if (contentObj.flight_id) {
+                                content = `Processing flight #${contentObj.flight_id}`;
+                            } else if (contentObj.message) {
+                                content = contentObj.message;
+                            } else {
+                                content = 'Processing coordination task...';
+                            }
+                        } else {
+                            content = comm.content.substring(0, 60) + (comm.content.length > 60 ? '...' : '');
+                        }
+                    } catch (e) {
+                        content = comm.content.substring(0, 60) + (comm.content.length > 60 ? '...' : '');
+                    }
+                }
+                
+                const message = `${sender} → ${receiver}: ${content}`;
+                window.addTimelineItem(message, 'secondary', 'message-circle', timestamp);
+            });
+            
+            // Add summary
+            window.addTimelineItem(`Coordination completed with ${commData.communications.length} communications`, 'success', 'check-circle');
+        } else {
+            window.addTimelineItem('No communications data available yet - agents are coordinating...', 'info', 'info');
+        }
+        
+        // Update agent status in visualization
+        if (statusData.agents && statusData.agents.length > 0) {
+            window.updateAgentStatus(statusData.agents);
+        }
+        
+    } catch (error) {
+        if (error.name === 'TimeoutError') {
+            console.warn('Coordination data fetch timed out');
+            window.addTimelineItem('Data fetch timed out - retrying...', 'warning', 'clock');
+        } else {
+            console.error('Error fetching coordination data:', error);
+            window.addTimelineItem('Error fetching coordination data: ' + error.message, 'danger', 'alert-triangle');
+        }
+    }
+};
+
+window.updateAgentStatus = function(agents) {
+    agents.forEach(agent => {
+        // Map agent names to node IDs
+        const agentNameMap = {
+            'Passenger Rebooking Agent': 'passenger',
+            'Crew Scheduling Agent': 'crew', 
+            'Aircraft Maintenance Agent': 'maintenance',
+            'Airport Resource Agent': 'airport',
+            'Customer Communication Agent': 'communication'
+        };
+        
+        const nodeId = agentNameMap[agent.name];
+        if (nodeId) {
+            const node = document.getElementById(`agent-${nodeId}`);
+            if (node) {
+                if (agent.status === 'active') {
+                    node.style.border = '3px solid #198754';
+                    node.style.background = '#d1e7dd';
+                } else if (agent.status === 'busy' || agent.status === 'processing') {
+                    node.style.border = '3px solid #fd7e14';
+                    node.style.background = '#fff3cd';
+                } else if (agent.status === 'error') {
+                    node.style.border = '3px solid #dc3545';
+                    node.style.background = '#f8d7da';
+                } else {
+                    // Reset to default
+                    node.style.border = node.style.border.replace('!important', '');
+                    node.style.background = node.style.background.replace('!important', '');
+                }
+            }
+        }
+    });
+};
+
+// Add close coordination modal function
+function closeCoordinationModal() {
+    console.log('Closing coordination modal');
+    
+    // Stop any ongoing coordination processes
+    if (window.coordinationInterval) {
+        clearInterval(window.coordinationInterval);
+        window.coordinationInterval = null;
+    }
+    
+    // Reset modal state
+    resetCoordinationModal();
+    
+    // Get modal instance and hide it
+    const modalElement = document.getElementById('coordinationModal');
+    if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    }
+    
+    // Reset current disruption ID
+    window.currentDisruptionId = null;
+}
+
+// Function to load coordination steps data
+function loadCoordinationSteps(disruptionId) {
+    console.log('loadCoordinationSteps called with disruptionId:', disruptionId);
+    const contentDiv = document.getElementById('coordination-steps-content');
+    if (!contentDiv) {
+        console.error('coordination-steps-content div not found!');
+        return;
+    }
+    
+    // Show loading state
+    contentDiv.innerHTML = `
+        <div class="text-center text-muted py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+    </div>
+            <p class="mt-2">Loading coordination data...</p>
+    </div>
+    `;
+    
+    // Fetch coordination data for this disruption with better error handling
+    Promise.allSettled([
+        fetch(`/api/communications/${disruptionId}`).then(r => r.json()),
+        fetch('/api/agent_status').then(r => r.json()),
+        fetch(`/api/test/coordination/quick/${disruptionId}`).then(r => r.json())
+    ])
+    .then((results) => {
+        console.log('API results:', results);
+        
+        const [commResult, agentResult, coordResult] = results;
+        const commData = commResult.status === 'fulfilled' ? commResult.value : { communications: [] };
+        const agentData = agentResult.status === 'fulfilled' ? agentResult.value : { agents: [] };
+        const coordData = coordResult.status === 'fulfilled' ? coordResult.value : { data: {} };
+        
+        console.log('Processed data:', { commData, agentData, coordData });
+        
+        let html = `<h6 class='mb-3 text-dark'>Coordination Analysis for Disruption #${disruptionId}</h6>`;
+        
+        // Show coordination summary if available
+        if (coordData.data && coordData.data.coordination_result) {
+            const result = coordData.data.coordination_result.result;
+            html += `
+                <div class='alert alert-info mb-3'>
+                    <h6><i data-feather="info" class="me-2"></i>Coordination Summary</h6>
+                    <div class="row">
+    <div class="col-md-3">
+                            <strong>Agents Involved:</strong><br>
+                            <span class="badge bg-primary">${result.agents_involved || 5}</span>
+    </div>
+    <div class="col-md-3">
+                            <strong>Phases:</strong><br>
+                            <span class="badge bg-success">${result.coordination_phases ? result.coordination_phases.length : 4}</span>
+    </div>
+    <div class="col-md-3">
+                            <strong>Status:</strong><br>
+                            <span class="badge bg-success">Completed</span>
+    </div>
+    <div class="col-md-3">
+                            <strong>Duration:</strong><br>
+                            <span class="badge bg-info">~60s</span>
+            </div>
+        </div>
+    </div>
+            `;
+        } else {
+            html += `
+                <div class='alert alert-warning mb-3'>
+                    <h6><i data-feather="alert-triangle" class="me-2"></i>Coordination Status</h6>
+                    <p class="mb-0">Coordination data is being processed. This may take a few moments.</p>
+                </div>
+            `;
+        }
+        
+        // Show agent status
+        if (agentData.agents && agentData.agents.length > 0) {
+            html += `<div class='mb-4'><h6 class='text-dark'><i data-feather="users" class="me-2"></i>Agent Status:</h6>
+                <div class="row">`;
+            agentData.agents.forEach(agent => {
+                const statusClass = agent.status === 'active' ? 'success' : 
+                                   agent.status === 'processing' ? 'warning' : 'secondary';
+                const statusIcon = agent.status === 'active' ? 'check-circle' : 
+                                  agent.status === 'processing' ? 'clock' : 'circle';
+                html += `
+                    <div class="col-md-6 mb-2">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="small fw-bold">${agent.name}</span>
+                                    <span class='badge bg-${statusClass}'>
+                                        <i data-feather="${statusIcon}" class="me-1" style="width: 12px; height: 12px;"></i>
+                                        ${agent.status}
+                                    </span>
+                                </div>
+                                ${agent.current_task ? `<small class="text-muted">${agent.current_task}</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div></div>`;
+        } else {
+            html += `
+                <div class='alert alert-info mb-3'>
+                    <h6><i data-feather="users" class="me-2"></i>Agent Status</h6>
+                    <p class="mb-0">Agent status data is being loaded...</p>
+                </div>
+            `;
+        }
+        
+        // Show detailed communications
+        if (commData.communications && commData.communications.length > 0) {
+            html += `<div class='mb-4'>
+                <h6 class='text-dark'><i data-feather="message-circle" class="me-2"></i>Agent Communications (${commData.communications.length} messages):</h6>
+                <div class="communications-timeline" style="max-height: 400px; overflow-y: auto;">`;
+            
+            commData.communications.forEach((comm, index) => {
+                const senderClass = getAgentColorClass(comm.sender);
+                const receiverClass = getAgentColorClass(comm.receiver);
+                const messageType = comm.message_type || 'message';
+                const timestamp = new Date(comm.timestamp).toLocaleTimeString();
+                
+                // Extract meaningful content from the communication
+                let content = 'Processing coordination task...';
+                if (comm.content) {
+                    try {
+                        if (comm.content.startsWith('{') && comm.content.endsWith('}')) {
+                            const contentObj = JSON.parse(comm.content);
+                            if (contentObj.disruption_id) {
+                                content = `Coordinating disruption #${contentObj.disruption_id}`;
+                            } else if (contentObj.flight_id) {
+                                content = `Processing flight #${contentObj.flight_id}`;
+                            } else if (contentObj.message) {
+                                content = contentObj.message;
+                            } else {
+                                content = 'Processing coordination task...';
+                            }
+                        } else {
+                            content = comm.content.substring(0, 80) + (comm.content.length > 80 ? '...' : '');
+                        }
+                    } catch (e) {
+                        content = comm.content.substring(0, 80) + (comm.content.length > 80 ? '...' : '');
+                    }
+                }
+                
+                html += `
+                    <div class="communication-item mb-3 p-3 border-start border-3 border-primary bg-light">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-${senderClass} me-2">${comm.sender}</span>
+                                <i data-feather="arrow-right" class="me-2" style="width: 16px; height: 16px;"></i>
+                                <span class="badge bg-${receiverClass}">${comm.receiver}</span>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted d-block">${timestamp}</small>
+                                <span class="badge bg-secondary small">${messageType}</span>
+                            </div>
+                        </div>
+                        <div class="communication-content">
+                            <p class="mb-0 small">${content}</p>
+                    </div>
+                </div>
+                `;
+            });
+            
+            html += `</div></div>`;
+        } else {
+            html += `<div class='alert alert-info'>
+                <i data-feather="info" class="me-2"></i>
+                No communications found for this disruption yet. Communications will appear here as agents coordinate.
+            </div>`;
+        }
+        
+        // Show coordination phases if available
+        if (coordData.data && coordData.data.coordination_result && coordData.data.coordination_result.result.coordination_phases) {
+            const phases = coordData.data.coordination_result.result.coordination_phases;
+            html += `<div class='mb-4'>
+                <h6 class='text-dark'><i data-feather="list" class="me-2"></i>Coordination Phases:</h6>
+                <div class="row">`;
+            phases.forEach((phase, index) => {
+                html += `
+                    <div class="col-md-3 mb-2">
+                        <div class="card border-0 bg-success bg-opacity-10">
+                            <div class="card-body text-center p-2">
+                                <div class="badge bg-success rounded-circle mb-2" style="width: 30px; height: 30px; line-height: 30px;">${index + 1}</div>
+                                <div class="small fw-bold">${phase}</div>
+                                        </div>
+                    </div>
+                </div>
+                `;
+            });
+            html += `</div></div>`;
+        }
+        
+        // Add refresh button
+        html += `
+            <div class="text-center mt-3">
+                <button class="btn btn-outline-primary btn-sm" onclick="loadCoordinationSteps(${disruptionId})">
+                    <i data-feather="refresh-cw" class="me-1"></i>Refresh Data
+                </button>
+            </div>
+        `;
+        
+        // If no data was loaded, show a fallback message
+        if (!commData.communications || commData.communications.length === 0) {
+            if (!agentData.agents || agentData.agents.length === 0) {
+                if (!coordData.data || !coordData.data.coordination_result) {
+                    html = `
+                        <div class='alert alert-info'>
+                            <h6><i data-feather="info" class="me-2"></i>Coordination Status</h6>
+                            <p class="mb-2">The coordination process is running in the background. This may take a few moments to complete.</p>
+                            <p class="mb-0"><strong>Disruption ID:</strong> ${disruptionId}</p>
+                        </div>
+                        <div class="text-center mt-3">
+                            <button class="btn btn-outline-primary btn-sm" onclick="loadCoordinationSteps(${disruptionId})">
+                                <i data-feather="refresh-cw" class="me-1"></i>Refresh Data
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        contentDiv.innerHTML = html;
+        
+        // Reinitialize Feather icons
+        if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+            feather.replace();
+        }
+    })
+    .catch(error => {
+        console.error('Error in loadCoordinationSteps:', error);
+        contentDiv.innerHTML = `
+            <div class='alert alert-danger'>
+                <i data-feather="alert-triangle" class="me-2"></i>
+                <strong>Error loading coordination data:</strong> ${error.message}
+                            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-outline-primary btn-sm" onclick="loadCoordinationSteps(${disruptionId})">
+                    <i data-feather="refresh-cw" class="me-1"></i>Retry
+                </button>
+            </div>
+        `;
+        if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+            feather.replace();
+        }
+    });
+}
+
+// Helper function to get color class for agents
+function getAgentColorClass(agentName) {
+    const agentColors = {
+        'Passenger Rebooking Agent': 'primary',
+        'Crew Scheduling Agent': 'info', 
+        'Aircraft Maintenance Agent': 'warning',
+        'Airport Resource Agent': 'danger',
+        'Customer Communication Agent': 'success',
+        'Agent Coordinator': 'secondary'
+    };
+    return agentColors[agentName] || 'secondary';
+}
+
+// Function to set up coordination modal button handlers
+function setupCoordinationModalHandlers(disruptionId) {
+    // Refresh button
+    const refreshBtn = document.getElementById('refresh-coordination');
+    if (refreshBtn) {
+        refreshBtn.onclick = function() {
+            loadCoordinationSteps(disruptionId);
+            // Also refresh live coordination data
+            if (window.refreshCoordinationData) {
+                window.refreshCoordinationData();
+            }
+        };
+    }
+    
+    // Re-run coordination button
+    const rerunBtn = document.getElementById('rerun-coordination-btn');
+    if (rerunBtn) {
+        rerunBtn.onclick = function() {
+            const contentDiv = document.getElementById('coordination-steps-content');
+            if (contentDiv) {
+                contentDiv.innerHTML = `
+                    <div class='text-center text-muted py-4'>
+                        <div class='spinner-border text-primary' role='status'>
+                            <span class='visually-hidden'>Re-running...</span>
+                            </div>
+                        <p class='mt-2'>Re-running coordination process...</p>
+                        </div>
+                `;
+            }
+            
+            fetch(`/api/test/coordination/quick/${disruptionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data && data.data.steps) {
+                        contentDiv.innerHTML = renderCoordinationSteps(data.data.steps, data);
+                    } else {
+                        contentDiv.innerHTML = `<div class='alert alert-danger'>Failed to re-run coordination.<br>${data.message || ''}</div>`;
+                    }
+                    if (typeof feather !== 'undefined') feather.replace();
+                })
+                .catch(error => {
+                    contentDiv.innerHTML = `<div class='alert alert-danger'>Error re-running coordination: ${error.message}</div>`;
+                });
+        };
+    }
+}
+
+// Function to render coordination steps
+function renderCoordinationSteps(steps, data) {
+    let html = `<h6 class='mb-3 text-dark'>Coordination Steps</h6>`;
+    html += `<ul class='list-group mb-3'>`;
+    for (const step of steps) {
+        const status = step.result.status;
+        const statusClass = status === 'success' ? 'success' : status === 'failure' ? 'danger' : 'warning';
+        html += `<li class='list-group-item d-flex justify-content-between align-items-center'>
+            <span><strong>${step.name}</strong>: ${step.result.message}</span>
+            <span class='badge bg-${statusClass}'>${status}</span>
+        </li>`;
+    }
+    html += `</ul>`;
+    if (data && data.message) {
+        html += `<div class='alert alert-info'><strong>Summary:</strong> ${data.message}</div>`;
+    }
+    if (data && data.error_details) {
+        html += `<div class='alert alert-danger'><strong>Error Details:</strong> <pre>${data.error_details}</pre></div>`;
+    }
+    return html;
+}
+</script>
+
+<!-- Coordination Modal -->
+<div class="modal fade" id="coordinationModal" tabindex="-1" aria-labelledby="coordinationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="coordinationModalLabel">
+                    <i data-feather="users" class="me-2 text-primary"></i>
+                    Agent Coordination Process
+                </h5>
+                <button type="button" class="btn-close" onclick="closeCoordinationModal()" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs mb-3" id="coordinationTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="live-tab" data-bs-toggle="tab" data-bs-target="#live-content" type="button" role="tab">
+                            <i data-feather="activity" class="me-1"></i>Live Coordination
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="steps-tab" data-bs-toggle="tab" data-bs-target="#steps-content" type="button" role="tab">
+                            <i data-feather="list" class="me-1"></i>Coordination Steps
+                        </button>
+                    </li>
+                    <!-- BEGIN: Business Metrics Tab (AI ADDED) -->
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="metrics-tab" data-bs-toggle="tab" data-bs-target="#metrics-content" type="button" role="tab">
+                            <i data-feather="bar-chart-2" class="me-1"></i>Business Metrics
+                        </button>
+                    </li>
+                    <!-- END: Business Metrics Tab (AI ADDED) -->
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="coordinationTabContent">
+                    <!-- Live Coordination Tab -->
+                    <div class="tab-pane fade show active" id="live-content" role="tabpanel">
+                <!-- Coordination Progress -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 0%" id="coordination-progress"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <small class="text-muted">Assessment</small>
+                            <small class="text-muted">Planning</small>
+                            <small class="text-muted">Execution</small>
+                            <small class="text-muted">Monitoring</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Network Visualization -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6 class="text-dark mb-3">
+                            <i data-feather="share-2" class="me-2 text-info"></i>
+                            Agent Network
+                        </h6>
+                        <div class="agent-network-container" style="height: 300px; background: #f8f9fa; border-radius: 8px; position: relative; border: 1px solid #dee2e6;">
+                            <!-- Agent nodes will be positioned here -->
+                            <div class="agent-node" id="agent-passenger" style="position: absolute; top: 50px; left: 50px; width: 80px; height: 80px; border-radius: 50%; background: #e7f3ff; border: 3px solid #0d6efd; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #0d6efd; transition: all 0.3s ease;">
+                                Passenger<br>Agent
+                            </div>
+                            <div class="agent-node" id="agent-crew" style="position: absolute; top: 50px; right: 50px; width: 80px; height: 80px; border-radius: 50%; background: #fff2e7; border: 3px solid #fd7e14; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #fd7e14; transition: all 0.3s ease;">
+                                Crew<br>Agent
+                            </div>
+                            <div class="agent-node" id="agent-maintenance" style="position: absolute; bottom: 120px; left: 150px; width: 80px; height: 80px; border-radius: 50%; background: #e7f7e7; border: 3px solid #198754; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #198754; transition: all 0.3s ease;">
+                                Maintenance<br>Agent
+                            </div>
+                            <div class="agent-node" id="agent-airport" style="position: absolute; bottom: 120px; right: 150px; width: 80px; height: 80px; border-radius: 50%; background: #f7e7f7; border: 3px solid #d63384; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #d63384; transition: all 0.3s ease;">
+                                Airport<br>Agent
+                            </div>
+                            <div class="agent-node" id="agent-communication" style="position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); width: 80px; height: 80px; border-radius: 50%; background: #f0f8ff; border: 3px solid #0dcaf0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #0dcaf0; transition: all 0.3s ease;">
+                                Communication<br>Agent
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coordination Timeline -->
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-dark mb-3">
+                            <i data-feather="clock" class="me-2 text-warning"></i>
+                            Coordination Timeline
+                        </h6>
+                        <div class="coordination-timeline" id="coordination-timeline" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Timeline items will be added here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+                    <!-- Coordination Steps Tab -->
+                    <div class="tab-pane fade" id="steps-content" role="tabpanel">
+                        <div id="coordination-steps-content">
+                            <div class="text-center text-muted py-4">
+                                <div class="spinner-border text-secondary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                                <p class="mt-2">Loading coordination steps...</p>
+                </div>
+            </div>
+            </div>
+                    <!-- BEGIN: Business Metrics Tab Content (AI ADDED) -->
+                    <div class="tab-pane fade" id="metrics-content" role="tabpanel">
+                        <div id="business-metrics-content">
+                            <div class="text-center text-muted py-4" id="metrics-loading-spinner">
+                                <div class="spinner-border text-info" role="status">
+                                    <span class="visually-hidden">Loading business metrics...</span>
+                                </div>
+                                <p class="mt-2">Loading business metrics...</p>
+                            </div>
+                            <div id="metrics-error" class="alert alert-danger d-none mt-3"></div>
+                            <div id="metrics-data" class="mt-3"></div>
+                        </div>
+                    </div>
+                    <!-- END: Business Metrics Tab Content (AI ADDED) -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeCoordinationModal()">Close</button>
+                <button type="button" class="btn btn-primary" id="refresh-coordination">
+                    <i data-feather="refresh-cw" class="me-1"></i>
+                    Refresh Status
+                </button>
+                <button type="button" class="btn btn-success" id="rerun-coordination-btn">
+                    <i data-feather="play-circle" class="me-1"></i>
+                    Re-Run Coordination
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+
+{% block title %}Scenario Simulation - FlightFixer IROPS{% endblock %}
+
+{% block head %}
+<style>
+    .scenario-card {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        background: white;
+        border: 1px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    .scenario-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .scenario-running { 
+        border-left: 4px solid #fd7e14; 
+        background: linear-gradient(90deg, rgba(253,126,20,0.05) 0%, white 15%);
+    }
+    .scenario-completed { 
+        border-left: 4px solid #198754; 
+        background: linear-gradient(90deg, rgba(25,135,84,0.05) 0%, white 15%);
+    }
+    .scenario-failed { 
+        border-left: 4px solid #dc3545; 
+        background: linear-gradient(90deg, rgba(220,53,69,0.05) 0%, white 15%);
+    }
+    .scenario-draft { 
+        border-left: 4px solid #6c757d; 
+        background: linear-gradient(90deg, rgba(108,117,125,0.05) 0%, white 15%);
+    }
+    
+    .scenario-type-weather { 
+        background: linear-gradient(45deg, rgba(13,202,240,0.08) 0%, rgba(13,202,240,0.02) 100%); 
+    }
+    .scenario-type-mechanical { 
+        background: linear-gradient(45deg, rgba(253,126,20,0.08) 0%, rgba(253,126,20,0.02) 100%); 
+    }
+    .scenario-type-crew { 
+        background: linear-gradient(45deg, rgba(25,135,84,0.08) 0%, rgba(25,135,84,0.02) 100%); 
+    }
+    .scenario-type-airport { 
+        background: linear-gradient(45deg, rgba(220,53,69,0.08) 0%, rgba(220,53,69,0.02) 100%); 
+    }
+    
+    .simulation-progress {
+        min-height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .results-chart {
+        max-height: 400px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1 class="h2 mb-0 text-dark">
+            <i data-feather="play-circle" class="me-2 text-primary"></i>
+            Scenario Simulation
+        </h1>
+        <p class="text-muted mb-0">What-if analysis and operational scenario testing</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createScenarioModal">
+            <i data-feather="plus" class="me-1"></i>
+            Create Scenario
+        </button>
+    </div>
+</div>
+
+<!-- Scenario Types -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h5 class="mb-3 text-dark">Available Scenario Types</h5>
+    </div>
+    {% for scenario_type in scenario_types %}
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card scenario-card scenario-type-{{ scenario_type.id.split('_')[0] }} h-100" 
+             onclick="createScenario('{{ scenario_type.id }}')">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    {% if scenario_type.id == 'weather_disruption' %}
+                    <i data-feather="cloud-rain" class="text-info" style="font-size: 2rem;"></i>
+                    {% elif scenario_type.id == 'mechanical_issue' %}
+                    <i data-feather="tool" class="text-warning" style="font-size: 2rem;"></i>
+                    {% elif scenario_type.id == 'crew_shortage' %}
+                    <i data-feather="users" class="text-success" style="font-size: 2rem;"></i>
+                    {% elif scenario_type.id == 'airport_closure' %}
+                    <i data-feather="x-octagon" class="text-danger" style="font-size: 2rem;"></i>
+                    {% endif %}
+                </div>
+                <h6 class="card-title text-dark">{{ scenario_type.name }}</h6>
+                <p class="card-text small text-muted">{{ scenario_type.description }}</p>
+                <button class="btn btn-outline-primary btn-sm">
+                    <i data-feather="play" class="me-1"></i>
+                    Run Scenario
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Recent Scenarios -->
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 text-dark">
+                    <i data-feather="history" class="me-2 text-success"></i>
+                    Recent Scenarios
+                </h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" onclick="filterScenarios('all')">All</button>
+                    <button class="btn btn-outline-secondary" onclick="filterScenarios('running')">Running</button>
+                    <button class="btn btn-outline-secondary" onclick="filterScenarios('completed')">Completed</button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if scenarios %}
+                <div class="row">
+                    {% for scenario in scenarios %}
+                    <div class="col-12 mb-3">
+                        <div class="card scenario-{{ scenario.status }} border-0">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <h6 class="card-title mb-1 text-dark">{{ scenario.name }}</h6>
+                                        <p class="text-muted small mb-2">{{ scenario.description or 'No description' }}</p>
+                                        <div class="d-flex align-items-center gap-3">
+                                            <span class="badge bg-info">{{ scenario.scenario_type|title|replace('_', ' ') }}</span>
+                                            <span class="badge bg-{{ 'warning' if scenario.status == 'running' else 'success' if scenario.status == 'completed' else 'danger' if scenario.status == 'failed' else 'secondary' }}">
+                                                {{ scenario.status|title }}
+                                            </span>
+                                            <small class="text-muted">
+                                                <i data-feather="clock" class="me-1"></i>
+                                                {{ scenario.created_at|timeago }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        {% if scenario.status == 'completed' and scenario.results %}
+                                        <button class="btn btn-sm btn-outline-primary mb-1" onclick="viewResults({{ scenario.id }})">
+                                            <i data-feather="bar-chart-2"></i>
+                                            View Results
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="viewScenarioDetails({{ scenario.id }})">
+                                            <i data-feather="eye"></i>
+                                            Details
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {% if scenario.status == 'running' %}
+                                <div class="mt-3">
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+                                             style="width: 75%"></div>
+                                    </div>
+                                    <small class="text-muted">Simulation in progress...</small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i data-feather="play-circle" class="mb-2 text-primary" style="font-size: 3rem;"></i>
+                    <h6 class="text-dark">No scenarios created yet</h6>
+                    <p class="mb-0">Create your first scenario to start testing operational strategies</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Scenario Insights -->
+    <div class="col-lg-4 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="card-title mb-0 text-dark">
+                    <i data-feather="trending-up" class="me-2 text-info"></i>
+                    Scenario Insights
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6 class="text-dark">Most Common Scenarios</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-dark">Weather Disruptions</span>
+                        <span class="badge bg-info">45%</span>
+                    </div>
+                    <div class="progress mb-3" style="height: 5px;">
+                        <div class="progress-bar bg-info" style="width: 45%"></div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-dark">Mechanical Issues</span>
+                        <span class="badge bg-warning">30%</span>
+                    </div>
+                    <div class="progress mb-3" style="height: 5px;">
+                        <div class="progress-bar bg-warning" style="width: 30%"></div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-dark">Crew Shortages</span>
+                        <span class="badge bg-success">15%</span>
+                    </div>
+                    <div class="progress mb-3" style="height: 5px;">
+                        <div class="progress-bar bg-success" style="width: 15%"></div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-dark">Airport Issues</span>
+                        <span class="badge bg-danger">10%</span>
+                    </div>
+                    <div class="progress" style="height: 5px;">
+                        <div class="progress-bar bg-danger" style="width: 10%"></div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h6 class="text-dark">Success Metrics</h6>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="h4 mb-0 text-success">87%</div>
+                            <small class="text-muted">Avg Success Rate</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="h4 mb-0 text-info">4.2h</div>
+                            <small class="text-muted">Avg Recovery Time</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h6 class="text-dark">AI Recommendations</h6>
+                    <div class="alert alert-info">
+                        <small>
+                            <strong>Tip:</strong> Weather scenarios show 23% better outcomes when passenger communication is prioritized early.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Scenario Modal -->
+<div class="modal fade" id="createScenarioModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-white border-bottom">
+                <h5 class="modal-title text-dark">Create New Scenario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <form id="scenario-form">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-dark">Scenario Type</label>
+                            <select class="form-select" id="scenario-type" required>
+                                <option value="">Select scenario type...</option>
+                                {% for scenario_type in scenario_types %}
+                                <option value="{{ scenario_type.id }}">{{ scenario_type.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-dark">Scenario Name</label>
+                            <input type="text" class="form-control" id="scenario-name" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-dark">Description</label>
+                        <textarea class="form-control" id="scenario-description" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-dark">Severity</label>
+                            <select class="form-select" id="scenario-severity">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-dark">Duration (hours)</label>
+                            <input type="number" class="form-control" id="scenario-duration" value="2" min="1" max="24">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-white border-top">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitScenario()">
+                    <i data-feather="play" class="me-1"></i>
+                    Create & Run Scenario
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Results Modal -->
+<div class="modal fade" id="testResultsModal" tabindex="-1" aria-labelledby="testResultsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="testResultsModalLabel">
+                    <i data-feather="bar-chart-2" class="me-2 text-primary"></i>
+                    Test Results
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-test-results"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="exportTestResults()">
+                    <i data-feather="download" class="me-1"></i>
+                    Export Results
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function createScenario(scenarioType) {
+    document.getElementById('scenario-type').value = scenarioType;
+    document.getElementById('scenario-name').value = '';
+    document.getElementById('scenario-description').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('createScenarioModal'));
+    modal.show();
+}
+
+function submitScenario() {
+    const formData = {
+        scenario_type: document.getElementById('scenario-type').value,
+        name: document.getElementById('scenario-name').value,
+        description: document.getElementById('scenario-description').value,
+        parameters: {
+            severity: document.getElementById('scenario-severity').value,
+            duration: parseInt(document.getElementById('scenario-duration').value)
+        }
+    };
+    
+    if (!formData.scenario_type || !formData.name) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Show loading state
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i data-feather="loader" class="me-1"></i>Creating...';
+    btn.disabled = true;
+    
+    // Make API call
+    fetch('/api/create_scenario', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Scenario created successfully!');
+            bootstrap.Modal.getInstance(document.getElementById('createScenarioModal')).hide();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert('Failed to create scenario: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        // Safe feather icon initialization
+        try {
+            if (typeof feather !== 'undefined' && feather && typeof feather.replace === 'function') {
+                feather.replace();
+            }
+        } catch (error) {
+            console.warn('Feather Icons initialization failed:', error);
+        }
+    });
+}
+
+function filterScenarios(filter) {
+    // Update button states
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Call the JavaScript function
+    if (typeof Scenarios !== 'undefined') {
+        Scenarios.filter(filter, event.target);
+    } else {
+        // Fallback implementation
+        const scenarioCards = document.querySelectorAll('.scenario-card');
+        scenarioCards.forEach(card => {
+            const scenarioType = card.getAttribute('data-scenario-type');
+            if (filter === 'all' || scenarioType === filter) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        
+        // Show notification
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-info alert-dismissible fade show position-fixed';
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.innerHTML = `
+            Scenarios filtered by: ${filter}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 3000);
+    }
+}
+
+function viewResults(scenarioId) {
+    if (typeof Scenarios !== 'undefined') {
+        Scenarios.viewResults(scenarioId);
+    } else {
+        // Fallback implementation
+        alert(`Loading results for scenario ${scenarioId}...`);
+        // In a real implementation, this would fetch and display results
+    }
+}
+
+function viewScenarioDetails(scenarioId) {
+    if (typeof Scenarios !== 'undefined') {
+        Scenarios.viewDetails(scenarioId);
+    } else {
+        // Fallback implementation
+        alert(`Loading details for scenario ${scenarioId}...`);
+        // In a real implementation, this would fetch and display details
+    }
+}
+</script>
+{% endblock %}
