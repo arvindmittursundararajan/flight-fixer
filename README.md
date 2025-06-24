@@ -92,56 +92,10 @@
 ---
 
 ## 🏗️ <span style="color:#10b981">System Architecture</span>
-
-```mermaid
-graph TD
-    subgraph Web UI
-        A1[Dashboard (Bootstrap, JS, mermaid.js)]
-        A2[Scenario Simulator]
-        A3[Agent Status & Chatter]
-    end
-    subgraph Flask API
-        B1[REST API]
-        B2[Agent Coordinator]
-        B3[Business Metrics Service]
-        B4[Data Simulator]
-        B5[Gemini Service]
-        B6[ADK Agent Integration]
-    end
-    subgraph MongoDB
-        C1[Flights]
-        C2[Disruptions]
-        C3[Agents]
-        C4[Agent Communications]
-        C5[Scenarios]
-        C6[Vector Index (Atlas Search)]
-    end
-    subgraph External
-        D1[Google Gemini AI]
-        D2[ADK LLM Agents]
-    end
-
-    A1-->|REST/JSON|B1
-    A2-->|REST/JSON|B1
-    A3-->|REST/JSON|B1
-    B1-->|Business Logic|B2
-    B1-->|Metrics|B3
-    B1-->|Simulation|B4
-    B1-->|AI|B5
-    B1-->|ADK|B6
-    B2-->|CRUD|C3
-    B2-->|Coordination|C2
-    B2-->|Comms|C4
-    B2-->|Scenario|C5
-    B2-->|Flights|C1
-    B2-->|RAG|C6
-    B5-->|LLM|D1
-    B6-->|LLM|D2
-    B2-->|Vector Search|C6
-    C6-->|RAG|B2
-```
-
----
+<div align="center">
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/6.png" alt="FlightFixer Screenshot 5" width="800"/>
+  <p><em>Agent Coordination Modal - Real-time agent communication and status</em></p>
+</div>
 
 ## 🤖 <span style="color:#6366f1">Multi-Agent System</span>
 
