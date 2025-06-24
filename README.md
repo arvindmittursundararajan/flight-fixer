@@ -65,27 +65,27 @@
 ## 📸 <span style="color:#7c3aed">Screenshots & Demo</span>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/1.png" alt="FlightFixer Screenshot 1" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/1.png" alt="FlightFixer Screenshot 1" width="800"/>
   <p><em>Dashboard Overview - Real-time disruption monitoring and agent coordination</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/2.png" alt="FlightFixer Screenshot 2" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/2.png" alt="FlightFixer Screenshot 2" width="800"/>
   <p><em>Agent Status & Communication - Multi-agent system orchestration</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/3.png" alt="FlightFixer Screenshot 3" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/3.png" alt="FlightFixer Screenshot 3" width="800"/>
   <p><em>Scenario Simulation - What-if analysis and testing capabilities</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/4.png" alt="FlightFixer Screenshot 4" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/4.png" alt="FlightFixer Screenshot 4" width="800"/>
   <p><em>Business Metrics - ROI analysis and cost impact assessment</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/5.png" alt="FlightFixer Screenshot 5" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/5.png" alt="FlightFixer Screenshot 5" width="800"/>
   <p><em>Agent Coordination Modal - Real-time agent communication and status</em></p>
 </div>
 
@@ -93,7 +93,7 @@
 
 ## 🏗️ <span style="color:#10b981">System Architecture</span>
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/6.png" alt="FlightFixer Screenshot 5" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/6.png" alt="FlightFixer Screenshot 5" width="800"/>
   <p><em>Agent Coordination Modal - Real-time agent communication and status</em></p>
 </div>
 
