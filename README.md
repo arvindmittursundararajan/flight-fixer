@@ -16,38 +16,13 @@
 
 ## 🎊 <span style="color:#7c3aed">Executive Summary</span>
 
-> <span style="font-size:1.2em">🚀 <b>FlightFixer</b> is a once-in-a-decade opportunity to capture a significant share of the <b>$60B airline disruption management market</b> through AI-native innovation. Our multi-agent architecture, real-time coordination, and explainable AI deliver exceptional ROI and scalability.</span>
+> 🚀 **FlightFixer** is a once-in-a-decade opportunity to capture a significant share of the **$60B airline disruption management market** through AI-native innovation. Our multi-agent architecture, real-time coordination, and explainable AI deliver exceptional ROI and scalability.
+
+[![FlightFixer](https://img.shields.io/badge/FlightFixer-AI%20Disruption%20Management-blueviolet?style=for-the-badge&logo=github&logoColor=white)](https://github.com/arvindmittursundararajan/flight-fixer)
+[![GitHub stars](https://img.shields.io/github/stars/arvindmittursundararajan/flight-fixer?style=flat-square)](https://github.com/arvindmittursundararajan/flight-fixer/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/arvindmittursundararajan/flight-fixer?style=flat-square)](https://github.com/arvindmittursundararajan/flight-fixer/network)
 
 **FlightFixer** is a state-of-the-art, AI-native, multi-agent platform for real-time airline disruption management. It orchestrates specialized agents, leverages Google Gemini AI, and integrates advanced analytics, RAG (Retrieval-Augmented Generation) with MongoDB Atlas Search, and modern web technologies for resilient, explainable, and scalable airline operations.
-
----
-
-## 📋 <span style="color:#6366f1">Table of Contents</span>
-
-### 🎯 **Business & Market**
-- [Market Size Analysis](#-market-size-analysis-tam-sam-som)
-- [Competitive Landscape](#-competitive-landscape)
-- [Pricing Strategy & Cost Analysis](#-pricing-strategy--cost-analysis)
-- [Business Value & Use Cases](#-business-value--use-cases)
-
-### 🏗️ **Technical Architecture**
-- [System Architecture](#-system-architecture)
-- [Multi-Agent System](#-multi-agent-system)
-- [AI & RAG Integration](#-ai--rag-integration)
-- [Business Metrics & Analytics](#-business-metrics--analytics)
-
-### 🚀 **Implementation & Operations**
-- [Scenario Simulation & Testing](#-scenario-simulation--testing)
-- [API Endpoints](#-api-endpoints)
-- [Security & Operations](#-security--operations)
-- [Deployment](#-deployment)
-- [ADK Agent Integration](#-adk-agent-integration)
-- [Testing](#-testing)
-
-### 📚 **Additional Resources**
-- [End-to-End Flow](#-end-to-end-rag--multi-agent-coordination-flow)
-- [Design Patterns](#-for-architects-key-design-patterns)
-- [Further Reading](#-further-reading)
 
 ---
 
@@ -63,39 +38,42 @@
 ---
 
 ## 📸 <span style="color:#7c3aed">Screenshots & Demo</span>
-
+<h1> Our App is available here => https://flightfixer-118666262682.us-west4.run.app </h1>
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/1.png" alt="FlightFixer Screenshot 1" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/1.png" alt="FlightFixer Screenshot 1" width="800"/>
   <p><em>Dashboard Overview - Real-time disruption monitoring and agent coordination</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/2.png" alt="FlightFixer Screenshot 2" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/2.png" alt="FlightFixer Screenshot 2" width="800"/>
   <p><em>Agent Status & Communication - Multi-agent system orchestration</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/3.png" alt="FlightFixer Screenshot 3" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/3.png" alt="FlightFixer Screenshot 3" width="800"/>
   <p><em>Scenario Simulation - What-if analysis and testing capabilities</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/4.png" alt="FlightFixer Screenshot 4" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/4.png" alt="FlightFixer Screenshot 4" width="800"/>
   <p><em>Business Metrics - ROI analysis and cost impact assessment</em></p>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/5.png" alt="FlightFixer Screenshot 5" width="800"/>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/5.png" alt="FlightFixer Screenshot 5" width="800"/>
   <p><em>Agent Coordination Modal - Real-time agent communication and status</em></p>
 </div>
 
 ---
 
 ## 🏗️ <span style="color:#10b981">System Architecture</span>
+
 <div align="center">
-  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/screenshot/6.png" alt="FlightFixer Screenshot 5" width="800"/>
-  <p><em>Agent Coordination Modal - Real-time agent communication and status</em></p>
+  <img src="https://raw.githubusercontent.com/arvindmittursundararajan/flight-fixer/refs/heads/main/6.png" alt="FlightFixer System Architecture" width="800"/>
+  <p><em>System Architecture</em></p>
 </div>
+
+---
 
 ## 🤖 <span style="color:#6366f1">Multi-Agent System</span>
 
@@ -106,7 +84,7 @@
 - **Aircraft Maintenance Agent:** Coordinates maintenance, spare aircraft, technical support.
 - **Airport Resource Agent:** Allocates gates, ground equipment, airport ops.
 - **Customer Communication Agent:** Multi-channel notifications, sentiment, compensation.
-- **Agent Coordinator:** Orchestrates all agents, manages dependencies, triggers comms.
+- **Agent Coordinator:** Orchestrates all agents, manages dependencies, triggers communications.
 
 ### ADK Agents (`agents_adk/`)
 
@@ -116,8 +94,8 @@
 
 ### Agent Communication
 
-- All agent-to-agent and agent-to-system comms are persisted in `agent_communications`.
-- Each comm includes: sender, receiver, message_type, content (JSON), processed, disruption_id, timestamp.
+- All agent-to-agent and agent-to-system communications are persisted in `agent_communications`.
+- Each communication includes: sender, receiver, message_type, content (JSON), processed, disruption_id, timestamp.
 - Used for audit, timeline, and business metrics.
 
 ---
@@ -128,40 +106,19 @@
 
 - Used for:
   - Disruption root cause analysis, impact assessment, recovery recommendations.
-  - Passenger comms (SMS, email, app, social).
+  - Passenger communications (SMS, email, app, social).
   - Crew/resource optimization.
   - Predictive analytics (delay, cost, passenger impact).
 
 ### Retrieval-Augmented Generation (RAG) with MongoDB Atlas Search
 
-- **Vector Embeddings:** Generated for disruptions, comms, scenarios.
+- **Vector Embeddings:** Generated for disruptions, communications, scenarios.
 - **Atlas Search:** Hybrid vector + keyword search for LLM context retrieval.
 - **RAG Workflow:**
   1. User/system query triggers a vector search in MongoDB.
-  2. Top-k relevant docs are retrieved (semantic + keyword).
+  2. Top-k relevant documents are retrieved (semantic + keyword).
   3. Results are injected as context into Gemini/LLM prompt.
-  4. LLM generates response, recommendations, or comms.
-
-#### Example: RAG Query (Python/PyMongo)
-```python
-pipeline = [
-    {
-        "$search": {
-            "index": "vector_index",
-            "knnBeta": {
-                "vector": embedding,  # generated from user/system query
-                "path": "embedding",
-                "k": 5
-            },
-            "query": "crew disruption JFK",
-            "path": ["description", "type"]
-        }
-    }
-]
-results = mongo_db['disruptions'].aggregate(pipeline)
-```
-
----
+  4. LLM generates response, recommendations, or communications.
 
 ## 📊 <span style="color:#10b981">Business Metrics & Analytics</span>
 
